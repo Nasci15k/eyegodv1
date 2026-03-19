@@ -1,4 +1,4 @@
-/ Motor de IA - Olho de Deus
+// Motor de IA - Olho de Deus
 // Integração Híbrida: Groq (Principal) + Gemini (Fallback)
 
 export async function gerarResumoInvestigativo(dados) {
@@ -21,7 +21,6 @@ export async function gerarResumoInvestigativo(dados) {
     ESTILO: Profissional, técnico, sem rodeios. Português do Brasil.
   `;
 
-  // 1. Tentar Groq (Llama 3 70b) — mixtral foi removido, usar llama3
   if (groqKey) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -43,7 +42,6 @@ export async function gerarResumoInvestigativo(dados) {
     }
   }
 
-  // 2. Fallback Gemini 1.5 Flash (gemini-pro foi depreciado)
   if (geminiKey) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
@@ -60,5 +58,5 @@ export async function gerarResumoInvestigativo(dados) {
     }
   }
 
-  return "Sistema de IA indisponível no momento (Verifique as chaves VITE_GROQ_API_KEY e VITE_GEMINI_API_KEY).";
+  return "Sistema de IA indisponível. Verifique VITE_GROQ_API_KEY e VITE_GEMINI_API_KEY.";
 }

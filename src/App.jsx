@@ -631,18 +631,25 @@ const fmtN = (v) => (v||0).toLocaleString('pt-BR');
 const colors = ['#e04545','#d4a03a','#3d9996','#4682b4','#9b59b6','#34a853','#e67e22','#1abc9c','#e74c3c','#f39c12'];
 
 // ─── API ─────────────────────────────────────────────────────────────────────
-async function fetchCEAP(ano) {
+async function fetchCEAP(ano = null, mandato = '2023-2026') {
   try {
-    const { data, error } = await supabase
-      .from('ceap')
-      .select('*')
-      .eq('numano', ano.toString())
-      .limit(10000); // 30.000 para manter os gráficos com performance 60fps
-      
-    if (error) {
-      console.error('Erro no Supabase:', error);
-      return null;
-    }
+    const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ceap-data`;
+    const url = ano ? `${base}?ano=${ano}` : `${base}?mandato=${mandato}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    console.log(`✅ ${json.total} registros — ${json.mandato}`);
+    return json.data || [];
+  } catch (err) {
+    console.error('Falha CEAP:', err);
+    return null;
+  }
+}
     
     // Normalização de dados, já que o postgresql importou tudo como TEXTO por segurança do COPY
     return data.map(r => ({
@@ -2890,29 +2897,22 @@ export default function App() {
   const [page, setPage] = useState('overview');
     const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [anoSelecionado, setAnoSelecionado] = useState(2024);
+  const [anoSelecionado, setAnoSelecionado] = useState('mandato:2023-2026');
 
-  const trocarAno = async (novoAno) => {
-    setLoading(true);
-    setAnoSelecionado(novoAno);
-    try {
-      const ceapReal = await fetchCEAP(novoAno);
-      if (ceapReal && ceapReal.length > 0) {
-        setData(ceapReal.map(r => ({
-          ...r,
-          txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
-          fornDiasAbertura: Math.floor(Math.random()*2000),
-          diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
-        })));
-      } else {
-        setData([]);
-      }
-    } catch (e) {
-      console.error(e);
-      setData([]);
+  const trocarAno = async (valor) => {
+  setLoading(true);
+  setAnoSelecionado(valor);
+  try {
+    let ceapReal;
+    if (String(valor).startsWith('mandato:')) {
+      ceapReal = await fetchCEAP(null, valor.replace('mandato:', ''));
+    } else {
+      ceapReal = await fetchCEAP(valor);
     }
-    setLoading(false);
-  };
+    setData(ceapReal?.length > 0 ? ceapReal : []);
+  } catch(e) { console.error(e); setData([]); }
+  setLoading(false);
+};
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -2922,7 +2922,7 @@ export default function App() {
 
     async function loadData() {
       try {
-        const ceapReal = await fetchCEAP(2024);
+        const ceapReal = await fetchCEAP(null, '2023-2026');
         if (ceapReal && ceapReal.length > 0) {
           setData(ceapReal.map(r => ({
             ...r,
@@ -3030,9 +3030,15 @@ export default function App() {
           <div className="topbar-source">
             {page === 'senado' ? 'Senado Federal · legis.senado.leg.br' : 'CEAP · Câmara dos Deputados'}
           </div>
-           <select className="select-input" value={anoSelecionado} onChange={e => trocarAno(Number(e.target.value))} style={{fontSize:11}}>
-            {[2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+           <select className="select-input" value={anoSelecionado} onChange={e => trocarAno(e.target.value)} style={{fontSize:11}}>
+  <option value="mandato:2023-2026">🏛 Mandato 2023–2026</option>
+  <option value="mandato:2019-2022">🏛 Mandato 2019–2022</option>
+  <option value="mandato:2015-2018">🏛 Mandato 2015–2018</option>
+  <option value="mandato:2011-2014">🏛 Mandato 2011–2014</option>
+  <option value="mandato:2008-2010">🏛 Mandato 2008–2010</option>
+  <option disabled>──────────</option>
+  {[2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008].map(a => <option key={a} value={a}>{a}</option>)}
+</select>
           <div className="topbar-live">
             <div className="live-dot"/>
             DADOS ABERTOS

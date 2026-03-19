@@ -637,7 +637,7 @@ async function fetchCEAP(ano) {
       .from('ceap')
       .select('*')
       .eq('numano', ano.toString())
-      .limit(30000); // 30.000 para manter os gráficos com performance 60fps
+      .limit(10000); // 30.000 para manter os gráficos com performance 60fps
       
     if (error) {
       console.error('Erro no Supabase:', error);
@@ -647,7 +647,11 @@ async function fetchCEAP(ano) {
     // Normalização de dados, já que o postgresql importou tudo como TEXTO por segurança do COPY
     return data.map(r => ({
       ...r,
-       vlrLiquido: parseFloat(r.vlrliquido ?? r.vlrLiquido) || 0,
+      vlrLiquido: parseFloat(r.vlrliquido ?? r.vlrLiquido) || 0,
+      vlrDocumento: parseFloat(r.vlrdocumento ?? r.vlrDocumento) || 0,
+      vlrGlosa: parseFloat(r.vlrglosa ?? r.vlrGlosa) || 0,
+      vlrRestituicao: parseFloat(r.vlrrestituicao ?? r.vlrRestituicao) || 0,
+      numMes: parseInt(r.nummes ?? r.numMes) || 1,
       txNomeParlamentar: r.txnomeparlamentar ?? r.txNomeParlamentar ?? 'N/D',
       sgPartido: r.sgpartido ?? r.sgPartido ?? 'N/D',
       sgUF: r.sguf ?? r.sgUF ?? 'N/D',
@@ -655,10 +659,6 @@ async function fetchCEAP(ano) {
       txtFornecedor: r.txtfornecedor ?? r.txtFornecedor ?? 'NÃO INFORMADO',
       txtCNPJCPF: r.txtcnpjcpf ?? r.txtCNPJCPF ?? '',
       datEmissao: r.datemissao ?? r.datEmissao ?? '',
-      vlrDocumento: parseFloat(r.vlrDocumento) || 0,
-      vlrGlosa: parseFloat(r.vlrGlosa) || 0,
-      vlrRestituicao: parseFloat(r.vlrRestituicao) || 0,
-      numMes: parseInt(r.numMes) || 1
     })).filter(r => r.vlrLiquido > 0);
   } catch (err) {
     console.error('Falha ao processar CEAP:', err);
@@ -2888,8 +2888,26 @@ function SenadoPage() {
 // ─── APP ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState('overview');
-  const [data, setData] = useState([]);
+    const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [anoSelecionado, setAnoSelecionado] = useState(2024);
+
+  const trocarAno = async (novoAno) => {
+    setLoading(true);
+    setAnoSelecionado(novoAno);
+    try {
+      const ceapReal = await fetchCEAP(novoAno);
+      if (ceapReal && ceapReal.length > 0) {
+        setData(ceapReal.map(r => ({
+          ...r,
+          txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
+          fornDiasAbertura: Math.floor(Math.random()*2000),
+          diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
+        })));
+      }
+   10000
+    setLoading(false);
+  };
 
   useEffect(() => {
     // Inject CSS
@@ -2900,11 +2918,12 @@ export default function App() {
 
     async function loadData() {
       try {
-        const ceapReal = await fetchCEAP(2024);
-        if (ceapReal && ceapReal.length > 0) {
+        async function loadData(ano = 2024) {
+  try {
+    const ceapReal = await fetchCEAP(ano); {
           // Embaralhar e limitar a 30.000 registros para garantir que a UI mantenha performance 60fps
           const shuffled = ceapReal.sort(() => 0.5 - Math.random());
-          const limit = shuffled.slice(0, 30000);
+          const limit = shuffled.slice(0, 10000);
           // Normaliza os dados para não quebrar a UI original
           const normal = limit.map(r => ({
             ...r,
@@ -2913,12 +2932,14 @@ export default function App() {
             diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
           }));
           setData(normal);
-        } else {
-          console.warn("Falha no CEAP real, caindo para Mock");
-          setData(generateMockData());
+          
+          } else {
+          console.warn("Supabase retornou vazio para o ano selecionado");
+          setData([]);
         }
       } catch (e) {
-        setData(generateMockData());
+        console.error("Erro ao carregar dados:", e);
+        setData([]);
       }
       setLoading(false);
     }
@@ -3013,6 +3034,9 @@ export default function App() {
           <div className="topbar-source">
             {page === 'senado' ? 'Senado Federal · legis.senado.leg.br' : 'CEAP · Câmara dos Deputados'}
           </div>
+           <select className="select-input" value={anoSelecionado} onChange={e => trocarAno(Number(e.target.value))} style={{fontSize:11}}>
+            {[2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008].map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
           <div className="topbar-live">
             <div className="live-dot"/>
             DADOS ABERTOS

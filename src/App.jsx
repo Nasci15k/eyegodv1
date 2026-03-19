@@ -647,7 +647,14 @@ async function fetchCEAP(ano) {
     // Normalização de dados, já que o postgresql importou tudo como TEXTO por segurança do COPY
     return data.map(r => ({
       ...r,
-      vlrLiquido: parseFloat(r.vlrLiquido) || 0,
+       vlrLiquido: parseFloat(r.vlrliquido ?? r.vlrLiquido) || 0,
+      txNomeParlamentar: r.txnomeparlamentar ?? r.txNomeParlamentar ?? 'N/D',
+      sgPartido: r.sgpartido ?? r.sgPartido ?? 'N/D',
+      sgUF: r.sguf ?? r.sgUF ?? 'N/D',
+      txtDescricao: r.txtdescricao ?? r.txtDescricao ?? 'N/D',
+      txtFornecedor: r.txtfornecedor ?? r.txtFornecedor ?? 'NÃO INFORMADO',
+      txtCNPJCPF: r.txtcnpjcpf ?? r.txtCNPJCPF ?? '',
+      datEmissao: r.datemissao ?? r.datEmissao ?? '',
       vlrDocumento: parseFloat(r.vlrDocumento) || 0,
       vlrGlosa: parseFloat(r.vlrGlosa) || 0,
       vlrRestituicao: parseFloat(r.vlrRestituicao) || 0,
@@ -899,9 +906,8 @@ const Icon = ({ name }) => {
 
 // ─── SUBCOMPONENTS ───────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, color='var(--text-primary)', accentColor, icon }) {
-
+  if (value === undefined || value === null) return null;
   return (
-
     <div className="glass-card stat-card fade-in" style={{'--accent-color': accentColor}}>
       <div className="stat-label">{label}</div>
       <div className="stat-value" style={{color}}>{value}</div>
@@ -2379,7 +2385,7 @@ function IAPage({ data }) {
       } else {
         const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
-          body: JSON.stringify({ model:'mixtral-8x7b-32768', messages:[
+          body: JSON.stringify({ model:'llama3-70b-8192', messages:[
             { role:'system', content:`Você é um assistente de análise de gastos parlamentares brasileiros. Contexto: ${statsContext}` },
             { role:'user', content: text }
           ], max_tokens:500 })

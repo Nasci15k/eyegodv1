@@ -2904,8 +2904,13 @@ export default function App() {
           fornDiasAbertura: Math.floor(Math.random()*2000),
           diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
         })));
+      } else {
+        setData([]);
       }
-   }
+    } catch (e) {
+      console.error(e);
+      setData([]);
+    }
     setLoading(false);
   };
 

@@ -2916,30 +2916,27 @@ export default function App() {
     document.head.appendChild(style);
     document.title = 'OLHO DE DEUS — Transparência Parlamentar';
 
-    async function loadData() {
+      async function loadData() {
       try {
-        async function loadData(ano = 2024) {
-  try {
-    const ceapReal = await fetchCEAP(ano); {
-          // Embaralhar e limitar a 30.000 registros para garantir que a UI mantenha performance 60fps
-          const shuffled = ceapReal.sort(() => 0.5 - Math.random());
-          const limit = shuffled.slice(0, 10000);
-          // Normaliza os dados para não quebrar a UI original
-          const normal = limit.map(r => ({
+        const ceapReal = await fetchCEAP(2024);
+        if (ceapReal && ceapReal.length > 0) {
+          const normal = ceapReal.map(r => ({
             ...r,
-            txtFornecedor: r.txtFornecedor || r.txtBeneficiario || 'NÃO INFORMADO',
-            fornDiasAbertura: Math.floor(Math.random()*2000), // Risco calculado apenas em cruzamento da Fase 3
+            txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
+            fornDiasAbertura: Math.floor(Math.random()*2000),
             diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
           }));
           setData(normal);
-          
-          } else {
-          console.warn("Supabase retornou vazio para o ano selecionado");
+        } else {
+          console.warn("Supabase retornou vazio");
           setData([]);
         }
       } catch (e) {
         console.error("Erro ao carregar dados:", e);
         setData([]);
+      }
+      setLoading(false);
+    }
       }
       setLoading(false);
     }

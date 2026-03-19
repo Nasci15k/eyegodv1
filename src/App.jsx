@@ -2905,42 +2905,36 @@ export default function App() {
           diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
         })));
       }
-   10000
+   }
     setLoading(false);
   };
 
   useEffect(() => {
-    // Inject CSS
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
     document.title = 'OLHO DE DEUS — Transparência Parlamentar';
 
-      async function loadData() {
+    async function loadData() {
       try {
         const ceapReal = await fetchCEAP(2024);
         if (ceapReal && ceapReal.length > 0) {
-          const normal = ceapReal.map(r => ({
+          setData(ceapReal.map(r => ({
             ...r,
             txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
             fornDiasAbertura: Math.floor(Math.random()*2000),
             diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
-          }));
-          setData(normal);
+          })));
         } else {
-          console.warn("Supabase retornou vazio");
           setData([]);
         }
       } catch (e) {
-        console.error("Erro ao carregar dados:", e);
+        console.error(e);
         setData([]);
       }
       setLoading(false);
     }
-      }
-      setLoading(false);
-    }
-    
+
     loadData();
 
     return () => document.head.removeChild(style);

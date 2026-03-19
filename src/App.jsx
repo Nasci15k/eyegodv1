@@ -651,27 +651,7 @@ async function fetchCEAP(ano = null, mandato = '2023-2026') {
   }
 }
     
-    // Normalização de dados, já que o postgresql importou tudo como TEXTO por segurança do COPY
-    return data.map(r => ({
-      ...r,
-      vlrLiquido: parseFloat(r.vlrliquido ?? r.vlrLiquido) || 0,
-      vlrDocumento: parseFloat(r.vlrdocumento ?? r.vlrDocumento) || 0,
-      vlrGlosa: parseFloat(r.vlrglosa ?? r.vlrGlosa) || 0,
-      vlrRestituicao: parseFloat(r.vlrrestituicao ?? r.vlrRestituicao) || 0,
-      numMes: parseInt(r.nummes ?? r.numMes) || 1,
-      txNomeParlamentar: r.txnomeparlamentar ?? r.txNomeParlamentar ?? 'N/D',
-      sgPartido: r.sgpartido ?? r.sgPartido ?? 'N/D',
-      sgUF: r.sguf ?? r.sgUF ?? 'N/D',
-      txtDescricao: r.txtdescricao ?? r.txtDescricao ?? 'N/D',
-      txtFornecedor: r.txtfornecedor ?? r.txtFornecedor ?? 'NÃO INFORMADO',
-      txtCNPJCPF: r.txtcnpjcpf ?? r.txtCNPJCPF ?? '',
-      datEmissao: r.datemissao ?? r.datEmissao ?? '',
-    })).filter(r => r.vlrLiquido > 0);
-  } catch (err) {
-    console.error('Falha ao processar CEAP:', err);
-  }
-  return null;
-}
+    
 
 async function fetchDeputados() {
   try {

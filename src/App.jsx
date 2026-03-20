@@ -2,10 +2,21 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from './lib/supabase.js';
 import { fetchCEP, fetchCNPJ } from './lib/brasilapi.js';
 import { fetchSenadores } from './lib/senado.js';
-import { fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares, fetchViagensGoverno, fetchContratos, fetchConvenios, fetchBolsaFamilia, fetchServidores, fetchLicitacoes, fetchCEPIM } from './lib/cgu.js';
+import {
+  fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares,
+  fetchViagensGoverno, fetchContratos, fetchConvenios,
+  fetchBolsaFamilia, fetchServidores, fetchLicitacoes, fetchCEPIM
+} from './lib/cgu.js';
 import { fetchEscandalos } from './lib/news.js';
-import { fetchCandidaturasTSE, fetchBensTSE, fetchPrestacaoContasTSE, fetchFiliadosPartido } from './lib/tse.js';
-import { fetchVotacoesDeputado, fetchDeputadoDetails } from './lib/camara.js';
+import {
+  fetchCandidaturasTSE, fetchBensTSE,
+  fetchPrestacaoContasTSE, fetchFiliadosPartido
+} from './lib/tse.js';
+import {
+  fetchVotacoesDeputado, fetchDeputadoDetails,
+  fetchPartidos, fetchEventos,
+  fetchProposicoes as fetchProposicoesAPI
+} from './lib/camara.js';
 import { fetchReceitaWS } from './lib/receitaws.js';
 import { fetchMandadosPrisao, fetchDataJud } from './lib/cnj.js';
 import { fetchSiconfiDespesas } from './lib/tesouro.js';
@@ -13,10 +24,15 @@ import { fetchLocalidadeIBGE, fetchPIBMunicipal } from './lib/ibge.js';
 import { fetchCVMInfo, fetchTCUIrregularidades } from './lib/cvm_tcu.js';
 import { fetchANACRAB, fetchDetranVeiculos } from './lib/ativos.js';
 import { fetchDOU } from './lib/dou.js';
-import { calcularScoreSuspeicao, analiseBenford, detectarLaranja } from './lib/intelligence.js';
+import {
+  calcularScoreSuspeicao, analiseBenford, detectarLaranja,
+  detectarFracionamento, detectarSocioParlamentar
+} from './lib/intelligence.js';
 import { gerarResumoInvestigativo } from './lib/ai.js';
-import { executarCruzamentos } from './lib/cruzamentos.js';
 import { useDossier } from './lib/useDossier.js';
+
+// Alias para evitar conflito com a fetchProposicoes local do App
+const CGUKEY = () => localStorage.getItem('cguKey') || import.meta.env?.VITE_CGU_KEY || '';
 // ─── DESIGN TOKENS (extraídos do CSS original) ───────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');

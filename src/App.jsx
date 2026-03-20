@@ -1556,61 +1556,87 @@ function BuscarPage({ data }) {
   }, [search, nomes]);
 
   // Carregar dados extras quando um deputado é selecionado
-  useEffect(() => {
-    if (!selected) return;
+useEffect(() => {
+  if (!selected) return;
 
-    async function loadFullDossier() {
-      setLoadingExtra(true);
-      try {
-        // 1. Achar o ID da Câmara pelo nome
-        const deps = await fetchDeputados();
-        const found = deps.find(d => d.nome.toLowerCase().includes(selected.toLowerCase()));
+  async function loadFullDossier() {
+    setLoadingExtra(true);
+    try {
+      // Busca pelo nome direto na API (sem limite de 100)
+      const nomeBusca = encodeURIComponent(selected.split(' ').slice(0, 2).join(' '));
+      const resp = await fetch(
+        `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${nomeBusca}&pagina=1&itens=10&ordem=ASC&ordenarPor=nome`
+      );
+      const json = await resp.json();
+      const deps = json.dados || [];
 
-        if (found) {
-          const depId = found.id;
-          const [details, votacoes, candidaturas] = await Promise.all([
-            fetchDeputadoDetails(depId),
-            fetchVotacoesDeputado(depId),
-            fetchCandidaturasTSE(selected)
+      // Match mais preciso
+      const found = deps.find(d => {
+        const nomeApi = (d.nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const nomeSel = selected.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const partes = nomeSel.split(' ').filter(p => p.length > 3);
+        return partes.every(p => nomeApi.includes(p));
+      }) || deps[0];
+
+      if (found) {
+        const depId = found.id;
+        const [details, votacoes] = await Promise.all([
+          fetchDeputadoDetails(depId),
+          fetchVotacoesDeputado(depId),
+        ]);
+
+        // CPF e UF vêm dos detalhes — passa pro TSE
+        const cpf = details?.cpf || null;
+        const uf = details?.ultimoStatus?.siglaUf || found.siglaUf || null;
+
+        setDossierData(prev => ({ ...prev, details, votacoes: votacoes || [], detailsRaw: found }));
+
+        const candidaturas = await fetchCandidaturasTSE(selected, cpf, uf);
+
+        if (candidaturas.length > 0) {
+          const cand = candidaturas[0];
+          const [bens, financiadores] = await Promise.all([
+            fetchBensTSE(cand.id, cand.anoEleicao, cand.uf || uf),
+            fetchPrestacaoContasTSE(cand.id, cand.anoEleicao, cand.uf || uf),
           ]);
-
-          setDossierData(prev => ({ ...prev, details, votacoes, detailsRaw: found }));
-
-          // 2. Com o CPF/ID do TSE, buscar bens e financiadores
-          if (candidaturas.length > 0) {
-            const cand = candidaturas[0];
-            const [bens, financiadores] = await Promise.all([
-              fetchBensTSE(cand.id),
-              fetchPrestacaoContasTSE(cand.id)
-            ]);
-            setDossierData(prev => ({ ...prev, bens, financiadores }));
-          }
-
-          // 3. Emendas, Município e Convênios (Obras)
-          if (details) {
-            const [emendas, convenios, codIbge] = await Promise.all([
-              fetchEmendasParlamentares(selected, '2024', localStorage.getItem('cguKey') || 'demo'),
-              fetchConvenios(selected, localStorage.getItem('cguKey') || 'demo'),
-              fetchLocalidadeIBGE(details.ultimoStatus.nomeMunicipio, details.ultimoStatus.siglaUf)
-            ]);
-            let pib = null;
-            if (codIbge) pib = await fetchPIBMunicipal(codIbge);
-            setDossierData(prev => ({
-              ...prev,
-              emendas: emendas.data || [],
-              convenios: convenios.data || [],
-              municipio: { nome: details.ultimoStatus.nomeMunicipio, pib }
-            }));
-          }
+          setDossierData(prev => ({ ...prev, bens: bens || [], financiadores: financiadores || [] }));
         }
-      } catch (err) {
-        console.error("Erro ao carregar dossiê:", err);
-      }
-      setLoadingExtra(false);
-    }
 
-    loadFullDossier();
-  }, [selected]);
+        if (details?.ultimoStatus) {
+          const [emendas, convenios, codIbge] = await Promise.all([
+            fetchEmendasParlamentares(selected, '2024', localStorage.getItem('cguKey') || 'demo'),
+            fetchConvenios(selected, localStorage.getItem('cguKey') || 'demo'),
+            fetchLocalidadeIBGE(details.ultimoStatus.nomeMunicipio, details.ultimoStatus.siglaUf),
+          ]);
+          let pib = null;
+          if (codIbge) pib = await fetchPIBMunicipal(codIbge);
+          setDossierData(prev => ({
+            ...prev,
+            emendas: emendas?.data || [],
+            convenios: convenios?.data || [],
+            municipio: { nome: details.ultimoStatus.nomeMunicipio, pib },
+          }));
+        }
+      } else {
+        // Sem match na Câmara — tenta TSE só pelo nome
+        const candidaturas = await fetchCandidaturasTSE(selected, null, null);
+        if (candidaturas.length > 0) {
+          const cand = candidaturas[0];
+          const [bens, financiadores] = await Promise.all([
+            fetchBensTSE(cand.id, cand.anoEleicao, cand.uf),
+            fetchPrestacaoContasTSE(cand.id, cand.anoEleicao, cand.uf),
+          ]);
+          setDossierData(prev => ({ ...prev, bens: bens || [], financiadores: financiadores || [] }));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dossiê:', err);
+    }
+    setLoadingExtra(false);
+  }
+
+  loadFullDossier();
+}, [selected]);
 
   const depData = useMemo(() => selected ? data.filter(r => r.txNomeParlamentar === selected) : [], [data, selected]);
   const analysis = useMemo(() => depData.length ? analyzeDeputado(depData) : null, [depData]);

@@ -16,6 +16,7 @@ import { fetchDOU } from './lib/dou.js';
 import { calcularScoreSuspeicao, analiseBenford, detectarLaranja } from './lib/intelligence.js';
 import { gerarResumoInvestigativo } from './lib/ai.js';
 import { executarCruzamentos } from './lib/cruzamentos.js';
+import { useDossier } from './lib/useDossier.js';
 // ─── DESIGN TOKENS (extraídos do CSS original) ───────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');

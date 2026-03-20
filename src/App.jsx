@@ -2907,7 +2907,7 @@ function IAPage({ data }) {
     try {
       let response = '';
       if (apiType === 'gemini') {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: `Você é um assistente de análise de dados parlamentares brasileiros. Contexto dos dados: ${statsContext}\n\nPergunta do investigador: ${text}\n\nResponda de forma direta, objetiva e em português. Identifique padrões suspeitos se relevante.` }] }] })
         });

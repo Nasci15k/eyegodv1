@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from './lib/supabase.js';
 import { fetchCEP, fetchCNPJ } from './lib/brasilapi.js';
 import { fetchSenadores } from './lib/senado.js';
-import { fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares, fetchViagensGoverno } from './lib/cgu.js';
+import { fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares, fetchViagensGoverno, fetchContratos, fetchConvenios } from './lib/cgu.js';
 import { fetchEscandalos } from './lib/news.js';
 import { fetchCandidaturasTSE, fetchBensTSE, fetchPrestacaoContasTSE, fetchFiliadosPartido } from './lib/tse.js';
+import { fetchVotacoesDeputado, fetchDeputadoDetails } from './lib/camara.js';
 import { fetchReceitaWS } from './lib/receitaws.js';
 import { fetchMandadosPrisao, fetchDataJud } from './lib/cnj.js';
 import { fetchSiconfiDespesas } from './lib/tesouro.js';
@@ -616,7 +617,104 @@ body {
 .justify-between { justify-content: space-between; }
 .flex-1 { flex: 1; }
 .w-full { width: 100%; }
+
+/* DOSSIER MODE */
+.dossier-active {
+  position: relative;
+}
+.dossier-active::after {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  border: 2px solid var(--accent-red);
+  border-radius: 18px;
+  pointer-events: none;
+  animation: borderPulse 2s infinite;
+  z-index: 10;
+}
+@keyframes borderPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.dossier-badge {
+  background: var(--accent-red);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-left: 8px;
+}
+.dossier-alert {
+  background: rgba(224,69,69,0.1);
+  border: 1px solid rgba(224,69,69,0.3);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--accent-red);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* TOGGLE SWITCH */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--bg-tertiary);
+  transition: .4s;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px; width: 16px;
+  left: 3px; bottom: 2px;
+  background-color: var(--text-muted);
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .toggle-slider { background-color: rgba(224,69,69,0.2); border-color: var(--accent-red); }
+input:checked + .toggle-slider:before { transform: translateX(22px); background-color: var(--accent-red); }
+
 `;
+
+// ─── DOSSIER BLOCK ────────────────────────────────────────────────────────────
+function DossierBlock({ title, icon, children, alerts=[], active=false }) {
+  return (
+    <div className={`glass-card fade-in ${active ? 'dossier-active' : ''}`} style={{padding:20, position:'relative'}}>
+      <div className="section-header">
+        <span className={`section-dot ${active ? '' : 'teal'}`}/>
+        <span>{title}</span>
+        {active && <span className="dossier-badge">DOSSIÊ ATIVO</span>}
+      </div>
+      <div style={{position:'absolute', top:20, right:20, fontSize:20, opacity:0.1}}>{icon}</div>
+      {children}
+      {active && alerts.length > 0 && (
+        <div className="space-y-2 mt-4">
+          {alerts.map((a,i) => (
+            <div key={i} className="dossier-alert">
+              <span>⚠</span>
+              <div>{a}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt = (v) => {
@@ -1126,6 +1224,18 @@ function BuscarPage({ data }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [dossierMode, setDossierMode] = useState(false);
+  const [loadingExtra, setLoadingExtra] = useState(false);
+
+  // Estados do Dossiê
+  const [dossierData, setDossierData] = useState({
+    details: null,
+    bens: [],
+    financiadores: [],
+    emendas: [],
+    votacoes: [],
+    municipio: null
+  });
 
   const nomes = useMemo(() => [...new Set(data.map(r=>r.txNomeParlamentar))].sort(), [data]);
 
@@ -1133,6 +1243,62 @@ function BuscarPage({ data }) {
     if (search.length < 2) { setSuggestions([]); return; }
     setSuggestions(nomes.filter(n=>n.toLowerCase().includes(search.toLowerCase())).slice(0,6));
   }, [search, nomes]);
+
+  // Carregar dados extras quando um deputado é selecionado
+  useEffect(() => {
+    if (!selected) return;
+
+    async function loadFullDossier() {
+      setLoadingExtra(true);
+      try {
+        // 1. Achar o ID da Câmara pelo nome
+        const deps = await fetchDeputados();
+        const found = deps.find(d => d.nome.toLowerCase().includes(selected.toLowerCase()));
+        
+        if (found) {
+          const depId = found.id;
+          const [details, votacoes, candidaturas] = await Promise.all([
+            fetchDeputadoDetails(depId),
+            fetchVotacoesDeputado(depId),
+            fetchCandidaturasTSE(selected)
+          ]);
+
+          setDossierData(prev => ({ ...prev, details, votacoes, detailsRaw: found }));
+
+          // 2. Com o CPF/ID do TSE, buscar bens e financiadores
+          if (candidaturas.length > 0) {
+            const cand = candidaturas[0];
+            const [bens, financiadores] = await Promise.all([
+              fetchBensTSE(cand.id),
+              fetchPrestacaoContasTSE(cand.id)
+            ]);
+            setDossierData(prev => ({ ...prev, bens, financiadores }));
+          }
+
+          // 3. Emendas, Município e Convênios (Obras)
+          if (details) {
+            const [emendas, convenios, codIbge] = await Promise.all([
+              fetchEmendasParlamentares(selected, '2024', localStorage.getItem('cguKey') || 'demo'),
+              fetchConvenios(selected, localStorage.getItem('cguKey') || 'demo'),
+              fetchLocalidadeIBGE(details.ultimoStatus.nomeMunicipio, details.ultimoStatus.siglaUf)
+            ]);
+            let pib = null;
+            if (codIbge) pib = await fetchPIBMunicipal(codIbge);
+            setDossierData(prev => ({ ...prev, 
+              emendas: emendas.data || [], 
+              convenios: convenios.data || [],
+              municipio: { nome: details.ultimoStatus.nomeMunicipio, pib } 
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dossiê:", err);
+      }
+      setLoadingExtra(false);
+    }
+
+    loadFullDossier();
+  }, [selected]);
 
   const depData = useMemo(() => selected ? data.filter(r=>r.txNomeParlamentar===selected) : [], [data, selected]);
   const analysis = useMemo(() => depData.length ? analyzeDeputado(depData) : null, [depData]);
@@ -1142,27 +1308,65 @@ function BuscarPage({ data }) {
     return Object.entries(analysis.byCat).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
   }, [analysis]);
 
-  const byMes = useMemo(() => {
-    if (!analysis) return [];
-    return Array.from({length:12},(_,i)=>analysis.byMes[i+1]||0);
-  }, [analysis]);
-
   const topForn = useMemo(() => analysis ? analysis.fornArr.slice(0,8).map(([label,value])=>({label:label.slice(0,35),value})) : [], [analysis]);
 
   const scoreColor = analysis ? (analysis.score > 60 ? 'var(--accent-red)' : analysis.score > 30 ? 'var(--accent-amber)' : 'var(--status-low)') : 'var(--text-muted)';
 
+  // Lógica de Cruzamento (Alertas de Dossiê)
+  const crossingAlerts = useMemo(() => {
+    if (!dossierMode || !analysis) return {};
+    const alerts = { bens: [], emendas: [], financiadores: [], geral: [] };
+
+    // Cruzamento Patrimônio vs Gastos
+    const totalBens = dossierData.bens.reduce((s, b) => s + b.valor, 0);
+    if (totalBens > 0 && analysis.total > totalBens * 0.5) {
+      alerts.bens.push(`Gastos CEAP (${fmt(analysis.total)}) equivalem a mais de 50% do patrimônio declarado.`);
+    }
+
+    // Cruzamento Emendas vs Fornecedores
+    const fornsSet = new Set(analysis.fornArr.map(f => f[0].toLowerCase()));
+    const emendasExecutores = dossierData.emendas.map(e => e.beneficiario?.nome?.toLowerCase() || "");
+    const matching = emendasExecutores.filter(ex => fornsSet.has(ex));
+    if (matching.length > 0) {
+      alerts.emendas.push(`Conexão detectada: Fornecedores da cota parlamentar também executaram emendas do deputado.`);
+    }
+
+    // Financiadores vs Fornecedores
+    const doadores = new Set(dossierData.financiadores.map(f => f.nomeDoador?.toLowerCase() || ""));
+    const matchingDoadores = analysis.fornArr.map(f => f[0].toLowerCase()).filter(f => doadores.has(f));
+    if (matchingDoadores.length > 0) {
+      alerts.financiadores.push(`Potencial conflito: Doadores de campanha aparecem como fornecedores pagos pela CEAP.`);
+    }
+
+    return alerts;
+  }, [dossierMode, analysis, dossierData]);
+
   return (
     <div className="fade-in">
-      <div className="page-header">
-        <div className="page-title">BUSCAR DEPUTADO</div>
-        <div className="page-desc">Perfil individual completo com análise de anomalias</div>
+      <div className="page-header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end'}}>
+        <div>
+          <div className="page-title">PAINEL DO PARLAMENTAR</div>
+          <div className="page-desc">Perfil integrado com dados Câmara, TSE, CGU e IBGE</div>
+        </div>
+        
+        {selected && (
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <span style={{fontFamily:'var(--font-mono)', fontSize:11, color: dossierMode ? 'var(--accent-red)' : 'var(--text-muted)'}}>
+              {dossierMode ? 'MODO DOSSIÊ: ON' : 'MODO DOSSIÊ: OFF'}
+            </span>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={dossierMode} onChange={e=>setDossierMode(e.target.checked)} />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* SEARCH */}
       <div style={{maxWidth:500,marginBottom:20,position:'relative'}}>
         <input
           className="search-input"
-          placeholder="🔍 Digite o nome do deputado..."
+          placeholder="🔍 Pesquisar pelo nome..."
           value={search}
           onChange={e=>setSearch(e.target.value)}
           style={{fontSize:15}}
@@ -1183,110 +1387,114 @@ function BuscarPage({ data }) {
       </div>
 
       {!selected && (
-        <div className="glass-card" style={{padding:40,textAlign:'center'}}>
-          <div style={{fontSize:48,marginBottom:12,opacity:0.2}}>👁</div>
-          <div style={{fontFamily:'var(--font-display)',fontSize:20,letterSpacing:'0.08em',color:'var(--text-muted)'}}>BUSQUE UM DEPUTADO</div>
-          <div style={{fontSize:13,color:'var(--text-muted)',marginTop:6}}>Digite pelo menos 2 letras do nome</div>
+        <div className="glass-card" style={{padding:60,textAlign:'center'}}>
+          <div style={{fontSize:48,marginBottom:12,opacity:0.2}}>👔</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:22,letterSpacing:'0.08em',color:'var(--text-muted)'}}>SELECIONE UM DEPUTADO PARA GERAR O DOSSIÊ</div>
         </div>
       )}
 
-      {selected && analysis && (
+      {selected && (
         <div className="fade-in">
-          {/* HEADER CARD */}
-          <div className="glass-card" style={{padding:20,marginBottom:16}}>
+          {/* HEADER INTEGRADO */}
+          <div className="glass-card" style={{padding:20,marginBottom:16, borderLeft: loadingExtra ? '4px solid var(--accent-amber)' : 'none'}}>
             <div style={{display:'flex',alignItems:'flex-start',gap:20}}>
-              <div style={{width:64,height:64,background:'var(--bg-tertiary)',borderRadius:50,border:'2px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>👤</div>
+              <div style={{width:80,height:80,background:'var(--bg-tertiary)',borderRadius:8,overflow:'hidden',border:'2px solid var(--border)',flexShrink:0}}>
+                {dossierData.details?.ultimoStatus.urlFoto ? <img src={dossierData.details.ultimoStatus.urlFoto} alt="" style={{width:'100%', height:'100%', objectFit:'cover'}}/> : <span style={{fontSize:32, display:'flex', alignItems:'center', justifyContent:'center', height:'100%'}}>👤</span>}
+              </div>
               <div style={{flex:1}}>
-                <div style={{fontFamily:'var(--font-display)',fontSize:26,letterSpacing:'0.05em'}}>{selected}</div>
-                <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
-                  <span className="badge badge-teal">{depData[0]?.sgPartido}</span>
-                  <span className="badge badge-amber">{depData[0]?.sgUF}</span>
-                  <span className="badge badge-purple">2024</span>
+                <div style={{fontFamily:'var(--font-display)',fontSize:32,letterSpacing:'0.05em', lineHeight:1.1}}>{selected}</div>
+                <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+                  <span className="badge badge-teal">{dossierData.details?.ultimoStatus.siglaPartido || depData[0]?.sgPartido}</span>
+                  <span className="badge badge-amber">{dossierData.details?.ultimoStatus.siglaUf || depData[0]?.sgUF}</span>
+                  <span className="badge badge-purple">{dossierData.details?.ultimoStatus.email || 'Email INDISPONÍVEL'}</span>
                 </div>
               </div>
-              {/* SCORE ANOMALIA */}
               <div style={{textAlign:'center',flexShrink:0}}>
                 <div className="score-ring" style={{borderColor:scoreColor,color:scoreColor,width:72,height:72,fontSize:24}}>
-                  {analysis.score}
+                  {analysis?.score || 0}
                 </div>
-                <div style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--text-muted)',marginTop:4,textTransform:'uppercase',letterSpacing:'0.08em'}}>SCORE RISCO</div>
+                <div style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--text-muted)',marginTop:4,textTransform:'uppercase',letterSpacing:'0.08em'}}>SUSPEIÇÃO CEAP</div>
               </div>
             </div>
-
-            <div className="grid-4" style={{marginTop:16,gap:12}}>
-              <StatCard label="Total Gasto" value={fmt(analysis.total)} sub="no período" color="var(--accent-red)" accentColor="var(--accent-red)"/>
-              <StatCard label="Nº de Notas" value={fmtN(analysis.n)} sub="transações" accentColor="var(--accent-teal)"/>
-              <StatCard label="Fornecedores" value={analysis.fornArr.length} sub={`HHI: ${analysis.hhi.toFixed(0)}`} color={`var(--accent-${analysis.hhiColor})`} accentColor={`var(--accent-${analysis.hhiColor})`}/>
-              <StatCard label="Média/Nota" value={fmt(analysis.total/analysis.n)} sub={`${analysis.pctRed.toFixed(1)}% val. redondos`} accentColor="var(--accent-amber)"/>
-            </div>
           </div>
 
-          {/* ALERTAS */}
-          {analysis.alertas.length > 0 && (
-            <div style={{marginBottom:16}}>
-              <div className="section-header"><span className="section-dot"/><span>ALERTAS DE ANOMALIAS</span></div>
-              {analysis.alertas.map((a,i) => (
-                <div key={i} className={`alert-card ${a.nivel}`}>
-                  <div className={`alert-title text-${a.nivel}`}>⚠ {a.tipo}</div>
-                  <div className="alert-body">{a.msg}</div>
+          <div className="grid-3 mb-4">
+             <DossierBlock title="PATRIMÔNIO DECLARADO" icon="💰" active={dossierMode} alerts={crossingAlerts.bens}>
+                <div className="stat-value" style={{color:'var(--accent-amber)'}}>
+                  {fmt(dossierData.bens.reduce((s,b)=>s+b.valor,0))}
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="stat-sub">{dossierData.bens.length} itens declarados no TSE</div>
+             </DossierBlock>
 
-          {/* STORIES */}
-          <div style={{marginBottom:16}}>
-            <div className="section-header"><span className="section-dot teal"/><span>LINHA DO TEMPO DO MANDATO</span></div>
-            <StoriesMandato depData={depData} nome={selected}/>
+             <DossierBlock title="EMENDAS PARLAMENTARES" icon="🏗" active={dossierMode} alerts={crossingAlerts.emendas}>
+                <div className="stat-value" style={{color:'var(--accent-teal)'}}>
+                  {fmt(dossierData.emendas.reduce((s,e)=>s+e.valorEmpenhado,0))}
+                </div>
+                <div className="stat-sub">{dossierData.emendas.length} emendas | {dossierData.convenios.length} convênios (obras)</div>
+                {dossierData.emendas.length > 0 && (
+                  <div style={{marginTop:10, fontSize:10, color:'var(--text-muted)'}}>
+                    <div style={{fontWeight:700, marginBottom:4, textTransform:'uppercase'}}>Principais Executores:</div>
+                    {dossierData.emendas.slice(0,3).map((e,i) => (
+                      <div key={i} className="truncate" style={{marginBottom:2}}>
+                        • {e.beneficiario?.nome || 'Órgão Público'} ({fmt(e.valorEmpenhado)})
+                      </div>
+                    ))}
+                  </div>
+                )}
+             </DossierBlock>
+
+             <DossierBlock title="DADOS DO MUNICÍPIO" icon="🏘" active={dossierMode}>
+                <div style={{fontSize:18, fontWeight:700}}>{dossierData.municipio?.nome || 'Consultando...'}</div>
+                <div className="stat-sub">PIB Municipal: {dossierData.municipio?.pib ? fmt(parseFloat(dossierData.municipio.pib)) : 'N/A'}</div>
+             </DossierBlock>
           </div>
 
-          {/* CHARTS */}
+          <div className="grid-2 mb-4">
+            <DossierBlock title="FINANCIADORES DE CAMPANHA" icon="🤝" active={dossierMode} alerts={crossingAlerts.financiadores}>
+              {dossierData.financiadores.length > 0 ? (
+                <BarChart data={dossierData.financiadores.slice(0,5).map(f=>({label:f.nomeDoador, value:f.valor}))} color="var(--accent-purple)"/>
+              ) : <div className="text-muted" style={{fontSize:12}}>Nenhum doador encontrado ou carregando...</div>}
+            </DossierBlock>
+
+            <DossierBlock title="VOTAÇÕES RECENTES" icon="🗳" active={dossierMode}>
+              <div className="space-y-2">
+                {dossierData.votacoes.slice(0,5).map((v,i) => (
+                  <div key={i} style={{fontSize:11, padding:'6px 0', borderBottom:'1px solid var(--border)'}}>
+                    <div style={{color:'var(--text-primary)', fontWeight:600}}>{v.siglaOrgao} - {v.dataHoraRegistro.split('T')[0]}</div>
+                    <div className="truncate" style={{color:'var(--text-secondary)'}}>{v.proposicaoObjeto || v.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            </DossierBlock>
+          </div>
+
+          {/* CEAP SECTION */}
+          <div className="section-header"><span className="section-dot teal"/><span>DETALHAMENTO DE GASTOS (CEAP)</span></div>
           <div className="grid-2" style={{marginBottom:16}}>
             <div className="glass-card" style={{padding:20}}>
-              <div className="section-header"><span className="section-dot amber"/><span>GASTOS POR CATEGORIA</span></div>
+              <div className="section-header"><span>CATEGORIAS</span></div>
               <BarChart data={byCat} color="var(--accent-amber)"/>
             </div>
             <div className="glass-card" style={{padding:20}}>
-              <div className="section-header"><span className="section-dot teal"/><span>TOP FORNECEDORES</span></div>
+              <div className="section-header"><span>TOP FORNECEDORES</span></div>
               <BarChart data={topForn} color="var(--accent-teal)"/>
-            </div>
-          </div>
-
-          {/* MONTHLY */}
-          <div className="glass-card" style={{padding:20,marginBottom:16}}>
-            <div className="section-header"><span className="section-dot"/><span>EVOLUÇÃO MENSAL DOS GASTOS</span></div>
-            <div style={{display:'flex',alignItems:'flex-end',gap:4,height:100}}>
-              {byMes.map((v,i) => {
-                const max = Math.max(...byMes)||1;
-                return (
-                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                    <div style={{flex:1,width:'100%',display:'flex',alignItems:'flex-end'}}>
-                      <div title={fmt(v)} style={{width:'100%',background:'var(--accent-red)',opacity:0.7,borderRadius:'3px 3px 0 0',height:`${(v/max*100)}%`,minHeight:4}}/>
-                    </div>
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--text-muted)'}}>
-                      {['J','F','M','A','M','J','J','A','S','O','N','D'][i]}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
           {/* TRANSAÇÕES */}
           <div className="glass-card" style={{padding:20}}>
-            <div className="section-header"><span className="section-dot teal"/><span>ÚLTIMAS TRANSAÇÕES</span></div>
+            <div className="section-header"><span>ÚLTIMAS TRANSAÇÕES CEAP</span></div>
             <div style={{overflowX:'auto',maxHeight:320,overflowY:'auto'}}>
               <table className="data-table">
                 <thead style={{position:'sticky',top:0,background:'var(--bg-card-solid)'}}>
-                  <tr><th>Data</th><th>Categoria</th><th>Fornecedor</th><th>CNPJ/CPF</th><th style={{textAlign:'right'}}>Valor</th></tr>
+                  <tr><th>Data</th><th>Categoria</th><th>Fornecedor</th><th style={{textAlign:'right'}}>Valor</th></tr>
                 </thead>
                 <tbody>
-                  {depData.sort((a,b)=>b.vlrLiquido-a.vlrLiquido).slice(0,30).map((r,i)=>(
+                  {depData.sort((a,b)=>b.vlrLiquido-a.vlrLiquido).slice(0,20).map((r,i)=>(
                     <tr key={i}>
                       <td><span className="font-mono text-muted" style={{fontSize:11}}>{r.datEmissao}</span></td>
-                      <td style={{fontSize:12,color:'var(--text-secondary)',maxWidth:160}} className="truncate">{r.txtDescricao}</td>
-                      <td style={{fontSize:12,color:'var(--text-secondary)',maxWidth:180}} className="truncate">{r.txtFornecedor}</td>
-                      <td><span className="font-mono text-muted" style={{fontSize:10}}>{r.txtCNPJCPF?.slice(0,18)}</span></td>
+                      <td style={{fontSize:12,color:'var(--text-secondary)'}} className="truncate">{r.txtDescricao}</td>
+                      <td style={{fontSize:12,color:'var(--text-secondary)'}} className="truncate">{r.txtFornecedor}</td>
                       <td style={{textAlign:'right'}}><span className={`money ${r.vlrLiquido > 10000 ? 'big' : ''}`}>{fmtFull(r.vlrLiquido)}</span></td>
                     </tr>
                   ))}

@@ -47,3 +47,13 @@ export async function fetchViagensGoverno(cpf, apiKey) {
   const clean = cpf.replace(/\D/g, '');
   return fetchCGU(`/viagens?ano=2024&cpfViajante=${clean}&pagina=1`, apiKey);
 }
+
+export async function fetchContratos(cnpj, apiKey) {
+  const clean = cnpj.replace(/\D/g, '');
+  return fetchCGU(`/contratos?cnpjSancionado=${clean}&pagina=1`, apiKey);
+}
+
+export async function fetchConvenios(autor, apiKey) {
+  // Convênios do parlamentar costumam ser filtrados por SIAFI ou autor de emenda
+  return fetchCGU(`/convenios?tipoConsulta=0&pagina=1`, apiKey); 
+}

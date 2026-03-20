@@ -28,3 +28,25 @@ export async function downloadCEAPZip(ano) {
     return null;
   }
 }
+
+export async function fetchVotacoesDeputado(depId) {
+  try {
+    const r = await fetch(`${BASE_URL}/deputados/${depId}/votacoes?pagina=1&itens=15&ordem=DESC&ordenarPor=dataHoraRegistro`);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function fetchDeputadoDetails(depId) {
+  try {
+    const r = await fetch(`${BASE_URL}/deputados/${depId}`);
+    const d = await r.json();
+    return d.dados || null;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}

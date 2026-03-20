@@ -3717,8 +3717,10 @@ function HeatmapPage({ data }) {
               return (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 }}>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{fmt(d.total)}</div>
-                  <div style={{
-                    width: '100%', maxWidth: 40, height: `${h}%`, borderRadius: '4px 4px 0 0',
+                  // DEPOIS: calcula h em pixels (max 110px)
+const h = Math.max(6, (d.total / (maxDia || 1)) * 110);
+<div style={{
+  width: '100%', height: `${h}px`, borderRadius: '4px 4px 0 0',
                     background: isFDS ? `rgba(224,69,69,${0.2 + d.total / maxDia * 0.6})` : getHeatColor(d.total, maxDia),
                     border: isFDS ? '1px solid rgba(224,69,69,0.4)' : '1px solid transparent',
                     position: 'relative'

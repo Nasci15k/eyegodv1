@@ -1766,21 +1766,32 @@ function BuscarPage({ data }) {
             </DossierBlock>
           </div>
 
-          {/* CEAP SECTION */}
-          <div className="section-header"><span className="section-dot teal" /><span>DETALHAMENTO DE GASTOS (CEAP)</span></div>
-          <div className="grid-2" style={{ marginBottom: 16 }}>
-            <div className="glass-card" style={{ padding: 20 }}>
-              <div className="section-header"><span>CATEGORIAS</span></div>
-              <BarChart data={byCat} color="var(--accent-amber)" />
-            </div>
-            <div className="glass-card" style={{ padding: 20 }}>
-              <div className="section-header"><span>TOP FORNECEDORES</span></div>
-              <BarChart data={topForn} color="var(--accent-teal)" />
-            </div>
-          </div>
+          {/* TABS */}
+<div className="tabs" style={{ marginBottom: 20 }}>
+  <div className={`tab-item ${activeTab === 'ceap' ? 'active' : ''}`} onClick={() => setActiveTab('ceap')}>📊 Gastos CEAP</div>
+  <div className={`tab-item ${activeTab === 'cruzamentos' ? 'active' : ''}`} onClick={() => setActiveTab('cruzamentos')}>
+    🔬 Cruzamentos {cruzamentos ? `(${cruzamentos.criticos + cruzamentos.altos} alertas)` : ''}
+  </div>
+</div>
+
+{activeTab === 'cruzamentos' && <CruzamentosTab resultado={cruzamentos} />}
+
+{activeTab === 'ceap' && <>
+  <div className="section-header"><span className="section-dot teal" /><span>DETALHAMENTO DE GASTOS (CEAP)</span></div>
+  <div className="grid-2" style={{ marginBottom: 16 }}>
+    <div className="glass-card" style={{ padding: 20 }}>
+      <div className="section-header"><span>CATEGORIAS</span></div>
+      <BarChart data={byCat} color="var(--accent-amber)" />
+    </div>
+    <div className="glass-card" style={{ padding: 20 }}>
+      <div className="section-header"><span>TOP FORNECEDORES</span></div>
+      <BarChart data={topForn} color="var(--accent-teal)" />
+    </div>
+  </div>
+</>}
 
           {/* TRANSAÇÕES */}
-          <div className="glass-card" style={{ padding: 20 }}>
+          {activeTab === 'ceap' && <div className="glass-card" style={{ padding: 20 }}>
             <div className="section-header"><span>ÚLTIMAS TRANSAÇÕES CEAP</span></div>
             <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
               <table className="data-table">
@@ -1799,7 +1810,7 @@ function BuscarPage({ data }) {
                 </tbody>
               </table>
             </div>
-          </div>
+          </div>}
         </div>
       )}
     </div>

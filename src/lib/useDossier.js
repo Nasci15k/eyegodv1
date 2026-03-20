@@ -63,7 +63,11 @@ export function useDossier(nome, ceapRows = []) {
       try {
         const deps = await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados?pagina=1&itens=100&ordem=ASC&ordenarPor=nome')
           .then(r => r.json()).then(d => d.dados || []).catch(() => []);
-        const found = deps.find(d => d.nome?.toLowerCase().includes(nome.toLowerCase().split(' ')[0]));
+        const found = deps.find(d => {
+  const nomeApi = d.nome?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const nomeBusca = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return nomeBusca.split(' ').filter(p => p.length > 3).every(p => nomeApi.includes(p));
+});
         if (found) {
           deputadoId = found.id;
           const [det, vots] = await Promise.all([

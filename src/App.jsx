@@ -977,8 +977,9 @@ function StatCard({ label, value, sub, color='var(--text-primary)', accentColor,
 }
 
 function BarChart({ data, color='var(--accent-teal)', maxItems=10 }) {
+  if (!data || data.length === 0) return <div style={{padding:20, textAlign:'center', color:'var(--text-muted)', fontSize:12}}>Sem dados para exibir.</div>;
   const slice = data.slice(0, maxItems);
-  const max = Math.max(...slice.map(d=>d.value));
+  const max = Math.max(...slice.map(d=>d.value)) || 1;
   return (
     <div style={{padding:'4px 0'}}>
       {slice.map((d,i) => (
@@ -1226,6 +1227,7 @@ function BuscarPage({ data }) {
     bens: [],
     financiadores: [],
     emendas: [],
+    convenios: [],
     votacoes: [],
     municipio: null
   });
@@ -1311,22 +1313,22 @@ function BuscarPage({ data }) {
     const alerts = { bens: [], emendas: [], financiadores: [], geral: [] };
 
     // Cruzamento Patrimônio vs Gastos
-    const totalBens = dossierData.bens.reduce((s, b) => s + b.valor, 0);
+    const totalBens = (dossierData.bens || []).reduce((s, b) => s + (b.valor || 0), 0);
     if (totalBens > 0 && analysis.total > totalBens * 0.5) {
       alerts.bens.push(`Gastos CEAP (${fmt(analysis.total)}) equivalem a mais de 50% do patrimônio declarado.`);
     }
 
     // Cruzamento Emendas vs Fornecedores
-    const fornsSet = new Set(analysis.fornArr.map(f => f[0].toLowerCase()));
-    const emendasExecutores = dossierData.emendas.map(e => e.beneficiario?.nome?.toLowerCase() || "");
-    const matching = emendasExecutores.filter(ex => fornsSet.has(ex));
+    const fornsSet = new Set((analysis.fornArr || []).map(f => f[0]?.toLowerCase() || ""));
+    const emendasExecutores = (dossierData.emendas || []).map(e => e.beneficiario?.nome?.toLowerCase() || "");
+    const matching = emendasExecutores.filter(ex => ex && fornsSet.has(ex));
     if (matching.length > 0) {
       alerts.emendas.push(`Conexão detectada: Fornecedores da cota parlamentar também executaram emendas do deputado.`);
     }
 
     // Financiadores vs Fornecedores
-    const doadores = new Set(dossierData.financiadores.map(f => f.nomeDoador?.toLowerCase() || ""));
-    const matchingDoadores = analysis.fornArr.map(f => f[0].toLowerCase()).filter(f => doadores.has(f));
+    const doadores = new Set((dossierData.financiadores || []).map(f => f.nomeDoador?.toLowerCase() || ""));
+    const matchingDoadores = (analysis.fornArr || []).map(f => f[0]?.toLowerCase() || "").filter(f => f && doadores.has(f));
     if (matchingDoadores.length > 0) {
       alerts.financiadores.push(`Potencial conflito: Doadores de campanha aparecem como fornecedores pagos pela CEAP.`);
     }
@@ -1414,17 +1416,17 @@ function BuscarPage({ data }) {
           <div className="grid-3 mb-4">
              <DossierBlock title="PATRIMÔNIO DECLARADO" icon="💰" active={dossierMode} alerts={crossingAlerts.bens}>
                 <div className="stat-value" style={{color:'var(--accent-amber)'}}>
-                  {fmt(dossierData.bens.reduce((s,b)=>s+b.valor,0))}
+                  {fmt(dossierData.bens?.reduce((s,b)=>s+b.valor,0) || 0)}
                 </div>
-                <div className="stat-sub">{dossierData.bens.length} itens declarados no TSE</div>
+                <div className="stat-sub">{(dossierData.bens || []).length} itens declarados no TSE</div>
              </DossierBlock>
 
              <DossierBlock title="EMENDAS PARLAMENTARES" icon="🏗" active={dossierMode} alerts={crossingAlerts.emendas}>
                 <div className="stat-value" style={{color:'var(--accent-teal)'}}>
-                  {fmt(dossierData.emendas.reduce((s,e)=>s+e.valorEmpenhado,0))}
+                  {fmt(dossierData.emendas?.reduce((s,e)=>s+(e.valorEmpenhado||0),0) || 0)}
                 </div>
-                <div className="stat-sub">{dossierData.emendas.length} emendas | {dossierData.convenios.length} convênios (obras)</div>
-                {dossierData.emendas.length > 0 && (
+                <div className="stat-sub">{(dossierData.emendas || []).length} emendas | {(dossierData.convenios || []).length} convênios (obras)</div>
+                {(dossierData.emendas || []).length > 0 && (
                   <div style={{marginTop:10, fontSize:10, color:'var(--text-muted)'}}>
                     <div style={{fontWeight:700, marginBottom:4, textTransform:'uppercase'}}>Principais Executores:</div>
                     {dossierData.emendas.slice(0,3).map((e,i) => (
@@ -1444,7 +1446,7 @@ function BuscarPage({ data }) {
 
           <div className="grid-2 mb-4">
             <DossierBlock title="FINANCIADORES DE CAMPANHA" icon="🤝" active={dossierMode} alerts={crossingAlerts.financiadores}>
-              {dossierData.financiadores.length > 0 ? (
+              {(dossierData.financiadores || []).length > 0 ? (
                 <BarChart data={dossierData.financiadores.slice(0,5).map(f=>({label:f.nomeDoador, value:f.valor}))} color="var(--accent-purple)"/>
               ) : <div className="text-muted" style={{fontSize:12}}>Nenhum doador encontrado ou carregando...</div>}
             </DossierBlock>
@@ -2450,6 +2452,149 @@ function CEPPage({ data }) {
   );
 }
 
+function EmendasPage({ data }) {
+  const [autor, setAutor] = useState('');
+  const [ano, setAno] = useState('2024');
+  const [result, setResult] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const buscar = async () => {
+    setLoading(true);
+    const res = await fetchEmendasParlamentares(autor, ano, localStorage.getItem('cguKey') || 'demo');
+    setResult(res.data || []);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">EMENDAS & EXECUÇÃO DE OBRAS</div>
+        <div className="page-desc">Consulte emendas destinadas via Portal da Transparência (CGU)</div>
+      </div>
+      <div className="glass-card" style={{padding:20, marginBottom:16}}>
+        <div style={{display:'flex', gap:10}}>
+          <input className="search-input" placeholder="Nome do Parlamentar..." value={autor} onChange={e=>setAutor(e.target.value)} style={{flex:1}}/>
+          <select className="select-input" value={ano} onChange={e=>setAno(e.target.value)}>
+            {[2024,2023,2022,2021,2020].map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Buscar'}</button>
+        </div>
+      </div>
+      <div className="glass-card" style={{padding:20}}>
+        <div style={{overflowX:'auto'}}>
+          <table className="data-table">
+            <thead>
+              <tr><th>Beneficiário</th><th>Valor</th><th>Plano de Trabalho</th><th>Data</th></tr>
+            </thead>
+            <tbody>
+              {result.length > 0 ? result.map((e,i)=>(
+                <tr key={i}>
+                  <td style={{fontSize:12}}>{e.beneficiario?.nome || 'N/A'}</td>
+                  <td className="money">{fmt(e.valorEmpenhado)}</td>
+                  <td style={{fontSize:11, color:'var(--text-muted)'}}>{e.subfuncao?.nome || 'N/A'}</td>
+                  <td className="font-mono" style={{fontSize:11}}>{e.data?.[0]?.split('T')[0] || ''}</td>
+                </tr>
+              )) : <tr><td colSpan="4" style={{textAlign:'center', padding:40, color:'var(--text-muted)'}}>Nenhuma emenda encontrada.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PatrimonioPage({ data }) {
+  const [nome, setNome] = useState('');
+  const [bens, setBens] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const buscar = async () => {
+    setLoading(true);
+    const cand = await fetchCandidaturasTSE(nome);
+    if (cand.length > 0) {
+      const res = await fetchBensTSE(cand[0].id);
+      setBens(res || []);
+    } else {
+      setBens([]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">PATRIMÔNIO & EVOLUÇÃO</div>
+        <div className="page-desc">Declaração de bens dos candidatos via TSE</div>
+      </div>
+      <div className="glass-card" style={{padding:20, marginBottom:16}}>
+        <div style={{display:'flex', gap:10}}>
+          <input className="search-input" placeholder="Nome do Parlamentar..." value={nome} onChange={e=>setNome(e.target.value)} style={{flex:1}}/>
+          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Consultar'}</button>
+        </div>
+      </div>
+      <div className="grid-2">
+        <div className="glass-card" style={{padding:20}}>
+          <div className="section-header"><span>TOTAL DECLARADO</span></div>
+          <div style={{fontSize:32, color:'var(--accent-amber)', fontFamily:'var(--font-display)'}}>
+            {fmt(bens.reduce((s,b)=>s+b.valor,0))}
+          </div>
+          <div className="stat-sub">{bens.length} itens registrados</div>
+        </div>
+        <div className="glass-card" style={{padding:20}}>
+          <div className="section-header"><span>DETALHAMENTO</span></div>
+          <div style={{maxHeight:300, overflowY:'auto'}}>
+            {bens.map((b,i)=>(
+              <div key={i} className="info-row">
+                <div className="info-key">{b.descricao}</div>
+                <div className="info-val">{fmt(b.valor)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinanciadoresPage({ data }) {
+  const [nome, setNome] = useState('');
+  const [fin, setFin] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const buscar = async () => {
+    setLoading(true);
+    const cand = await fetchCandidaturasTSE(nome);
+    if (cand.length > 0) {
+      const res = await fetchPrestacaoContasTSE(cand[0].id);
+      setFin(res || []);
+    } else {
+      setFin([]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">FINANCIADORES DE CAMPANHA</div>
+        <div className="page-desc">Quem financiou a última eleição do parlamentar</div>
+      </div>
+      <div className="glass-card" style={{padding:20, marginBottom:16}}>
+        <div style={{display:'flex', gap:10}}>
+          <input className="search-input" placeholder="Nome do Parlamentar..." value={nome} onChange={e=>setNome(e.target.value)} style={{flex:1}}/>
+          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Analisar'}</button>
+        </div>
+      </div>
+      <div className="glass-card" style={{padding:20}}>
+        <div className="section-header"><span>PRINCIPAIS DOADORES</span></div>
+        {fin.length > 0 ? (
+          <BarChart data={fin.slice(0,10).map(f=>({label:f.nomeDoador, value:f.valor}))} color="var(--accent-purple)"/>
+        ) : <div style={{textAlign:'center', padding:40, color:'var(--text-muted)'}}>Nenhum doador encontrado.</div>}
+      </div>
+    </div>
+  );
+}
+
 // ─── PÁGINA ÍNDICE DE SUSPEIÇÃO POR SETOR ──────────────────────────────────────
 function SetoresPage({ data }) {
   const sectorData = useMemo(() => {
@@ -3187,6 +3332,9 @@ export default function App() {
     {id:'rede', label:'Rede de Fornecedores', icon:'chart'},
     {id:'heatmap', label:'Heatmap de Gastos', icon:'chart'},
     {id:'setores', label:'Suspeição por Setor', icon:'shield'},
+    {id:'emendas', label:'Emendas & Obras', icon:'chart', section:'DADOS TÉCNICOS'},
+    {id:'patrimonio', label:'Patrimônio TSE', icon:'anomaly'},
+    {id:'financiadores', label:'Financiadores', icon:'compare'},
     {id:'investigacao', label:'Modo Investigação', icon:'search', badge:'NOVO', badgeType:'red', section:'INVESTIGAÇÃO'},
     {id:'ia', label:'Assistente IA', icon:'eye', badge:'IA', badgeType:'red'},
     {id:'hall', label:'Hall da Vergonha', icon:'chart'},
@@ -3289,6 +3437,9 @@ export default function App() {
           {page === 'rede'         && <RedePage data={data}/>}
           {page === 'heatmap'      && <HeatmapPage data={data}/>}
           {page === 'setores'      && <SetoresPage data={data}/>}
+          {page === 'emendas'      && <EmendasPage data={data}/>}
+          {page === 'patrimonio'   && <PatrimonioPage data={data}/>}
+          {page === 'financiadores'&& <FinanciadoresPage data={data}/>}
           {page === 'investigacao' && <InvestigacaoPage data={data}/>}
           {page === 'ia'           && <IAPage data={data}/>}
           {page === 'hall'         && <HallPage data={data}/>}

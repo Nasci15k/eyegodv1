@@ -1596,7 +1596,11 @@ function BuscarPage({ data }) {
 
   const depData = useMemo(() => selected ? data.filter(r => r.txNomeParlamentar === selected) : [], [data, selected]);
   const analysis = useMemo(() => depData.length ? analyzeDeputado(depData) : null, [depData]);
-
+ // Cruzamentos automáticos com os dados disponíveis
+  const cruzamentos = useMemo(() => {
+    if (!analysis || !depData.length) return null;
+    return executarCruzamentos(depData, dossierData);
+  }, [depData, dossierData, analysis]);
   const byCat = useMemo(() => {
     if (!analysis) return [];
     return Object.entries(analysis.byCat).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);

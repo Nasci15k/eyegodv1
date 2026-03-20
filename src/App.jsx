@@ -768,13 +768,6 @@ async function fetchDeputadosPorUF(uf) {
   } catch { return []; }
 }
 
-async function fetchVotacoesDeputado(depId) {
-  try {
-    const r = await fetch(`https://dadosabertos.camara.leg.br/api/v2/deputados/${depId}/votacoes?pagina=1&itens=10`);
-    const d = await r.json();
-    return d.dados || [];
-  } catch { return []; }
-}
 
 async function fetchIBGE(uf) {
   try {

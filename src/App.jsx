@@ -2151,9 +2151,17 @@ function MapaPage({ data }) {
 }
 
 // ─── PÁGINA REDE DE FORNECEDORES ───────────────────────────────────────────────
-function RedePage({ data }) {
+function RedePage({ data, nomes }) {
   const [filtroNome, setFiltroNome] = useState('');
-  const nomes = useMemo(() => [...new Set(data.map(r => r.txNomeParlamentar))].sort(), [data]);
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    if (filtroNome.length > 1 && !nomes.includes(filtroNome)) {
+      setSuggestions(nomes.filter(n => n.toLowerCase().includes(filtroNome.toLowerCase())).slice(0, 5));
+    } else {
+      setSuggestions([]);
+    }
+  }, [filtroNome, nomes]);
 
   return (
     <div className="fade-in">
@@ -2162,12 +2170,26 @@ function RedePage({ data }) {
         <div className="page-desc">Quem recebe de quem · grafo de relacionamentos parlamentar → fornecedor</div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <select className="select-input" value={filtroNome} onChange={e => setFiltroNome(e.target.value)} style={{ flex: 1, maxWidth: 400 }}>
-          <option value="">Visão geral (todos)</option>
-          {nomes.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
-        {filtroNome && <button className="btn" onClick={() => setFiltroNome('')}>Limpar</button>}
+      <div style={{ position: 'relative', marginBottom: 20, maxWidth: 400 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input 
+            className="search-input" 
+            placeholder="Filtrar por Parlamentar..." 
+            value={filtroNome} 
+            onChange={e => setFiltroNome(e.target.value)} 
+            style={{ flex: 1 }} 
+          />
+          {filtroNome && <button className="btn" onClick={() => { setFiltroNome(''); setSuggestions([]); }}>Limpar</button>}
+        </div>
+        {suggestions.length > 0 && (
+          <div className="autocomplete-dropdown">
+            {suggestions.map(s => (
+              <div key={s} className="autocomplete-item" onClick={() => { setFiltroNome(s); setSuggestions([]); }}>
+                {s}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="glass-card" style={{ padding: 20, marginBottom: 16 }}>
@@ -2455,14 +2477,24 @@ function CEPPage({ data }) {
   );
 }
 
-function EmendasPage({ data }) {
+function EmendasPage({ data, nomes }) {
   const [autor, setAutor] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [ano, setAno] = useState('2024');
   const [result, setResult] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (autor.length > 1 && !nomes.includes(autor)) {
+      setSuggestions(nomes.filter(n => n.toLowerCase().includes(autor.toLowerCase())).slice(0, 5));
+    } else {
+      setSuggestions([]);
+    }
+  }, [autor, nomes]);
+
   const buscar = async () => {
     setLoading(true);
+    setSuggestions([]);
     const res = await fetchEmendasParlamentares(autor, ano, localStorage.getItem('cguKey') || 'demo');
     setResult(res.data || []);
     setLoading(false);
@@ -2475,12 +2507,30 @@ function EmendasPage({ data }) {
         <div className="page-desc">Consulte emendas destinadas via Portal da Transparência (CGU)</div>
       </div>
       <div className="glass-card" style={{ padding: 20, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input className="search-input" placeholder="Nome do Parlamentar..." value={autor} onChange={e => setAutor(e.target.value)} style={{ flex: 1 }} />
-          <select className="select-input" value={ano} onChange={e => setAno(e.target.value)}>
-            {[2024, 2023, 2022, 2021, 2020].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Buscar'}</button>
+        <div style={{ position: 'relative', maxWidth: 600 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input 
+              className="search-input" 
+              placeholder="Nome do Parlamentar..." 
+              value={autor} 
+              onChange={e => setAutor(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && buscar()}
+              style={{ flex: 1 }} 
+            />
+            <select className="select-input" value={ano} onChange={e => setAno(e.target.value)}>
+              {[2024, 2023, 2022, 2021, 2020, 2019, 2018].map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Buscar'}</button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="autocomplete-dropdown" style={{ left: 0, right: 180 }}>
+              {suggestions.map(s => (
+                <div key={s} className="autocomplete-item" onClick={() => { setAutor(s); setSuggestions([]); }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="glass-card" style={{ padding: 20 }}>
@@ -2506,13 +2556,23 @@ function EmendasPage({ data }) {
   );
 }
 
-function PatrimonioPage({ data }) {
+function PatrimonioPage({ data, nomes }) {
   const [nome, setNome] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [bens, setBens] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (nome.length > 1 && !nomes.includes(nome)) {
+      setSuggestions(nomes.filter(n => n.toLowerCase().includes(nome.toLowerCase())).slice(0, 5));
+    } else {
+      setSuggestions([]);
+    }
+  }, [nome, nomes]);
+
   const buscar = async () => {
     setLoading(true);
+    setSuggestions([]);
     const cand = await fetchCandidaturasTSE(nome);
     if (cand.length > 0) {
       const res = await fetchBensTSE(cand[0].id);
@@ -2530,9 +2590,27 @@ function PatrimonioPage({ data }) {
         <div className="page-desc">Declaração de bens dos candidatos via TSE</div>
       </div>
       <div className="glass-card" style={{ padding: 20, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input className="search-input" placeholder="Nome do Parlamentar..." value={nome} onChange={e => setNome(e.target.value)} style={{ flex: 1 }} />
-          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Consultar'}</button>
+        <div style={{ position: 'relative', maxWidth: 500 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input 
+              className="search-input" 
+              placeholder="Nome do Parlamentar..." 
+              value={nome} 
+              onChange={e => setNome(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && buscar()}
+              style={{ flex: 1 }} 
+            />
+            <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Consultar'}</button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="autocomplete-dropdown" style={{ left: 0, right: 90 }}>
+              {suggestions.map(s => (
+                <div key={s} className="autocomplete-item" onClick={() => { setNome(s); setSuggestions([]); }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="grid-2">
@@ -2559,13 +2637,23 @@ function PatrimonioPage({ data }) {
   );
 }
 
-function FinanciadoresPage({ data }) {
+function FinanciadoresPage({ data, nomes }) {
   const [nome, setNome] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [fin, setFin] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (nome.length > 1 && !nomes.includes(nome)) {
+      setSuggestions(nomes.filter(n => n.toLowerCase().includes(nome.toLowerCase())).slice(0, 5));
+    } else {
+      setSuggestions([]);
+    }
+  }, [nome, nomes]);
+
   const buscar = async () => {
     setLoading(true);
+    setSuggestions([]);
     const cand = await fetchCandidaturasTSE(nome);
     if (cand.length > 0) {
       const res = await fetchPrestacaoContasTSE(cand[0].id);
@@ -2583,9 +2671,27 @@ function FinanciadoresPage({ data }) {
         <div className="page-desc">Quem financiou a última eleição do parlamentar</div>
       </div>
       <div className="glass-card" style={{ padding: 20, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input className="search-input" placeholder="Nome do Parlamentar..." value={nome} onChange={e => setNome(e.target.value)} style={{ flex: 1 }} />
-          <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Analisar'}</button>
+        <div style={{ position: 'relative', maxWidth: 500 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input 
+              className="search-input" 
+              placeholder="Nome do Parlamentar..." 
+              value={nome} 
+              onChange={e => setNome(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && buscar()}
+              style={{ flex: 1 }} 
+            />
+            <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Analisar'}</button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="autocomplete-dropdown" style={{ left: 0, right: 90 }}>
+              {suggestions.map(s => (
+                <div key={s} className="autocomplete-item" onClick={() => { setNome(s); setSuggestions([]); }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="glass-card" style={{ padding: 20 }}>
@@ -2882,9 +2988,18 @@ function IAPage({ data }) {
 }
 
 // ─── PÁGINA MODO INVESTIGAÇÃO ──────────────────────────────────────────────────
-function InvestigacaoPage({ data }) {
+function InvestigacaoPage({ data, nomes }) {
   const [activeTab, setActiveTab] = useState('cnpj');
+  const [polInput, setPolInput] = useState('');
+  const [polSuggestions, setPolSuggestions] = useState([]);
 
+  useEffect(() => {
+    if (polInput.length > 1 && !nomes.includes(polInput)) {
+      setPolSuggestions(nomes.filter(n => n.toLowerCase().includes(polInput.toLowerCase())).slice(0, 5));
+    } else {
+      setPolSuggestions([]);
+    }
+  }, [polInput, nomes]);
 
   // --- Estados CNPJ ---
   const [cnpjMarcado, setCnpjMarcado] = useState('');
@@ -2904,7 +3019,6 @@ function InvestigacaoPage({ data }) {
   const [scoreInvestigacao, setScoreInvestigacao] = useState(null);
 
   // --- Estados Político ---
-  const [polInput, setPolInput] = useState('');
   const [polData, setPolData] = useState(null);
   const [polBens, setPolBens] = useState([]);
   const [polEmendas, setPolEmendas] = useState(null);
@@ -3021,6 +3135,7 @@ function InvestigacaoPage({ data }) {
   const buscarPolitico = async () => {
     if (!polInput.trim()) return;
     setLoadingPol(true); setPolData(null); setPolBens([]); setPolEmendas(null); setPolJustica(null); setNewsData([]);
+    setPolSuggestions([]);
     const cand = await fetchCandidaturasTSE(polInput);
     const prim = cand[0];
     setPolData(prim || { error: 'Candidato não encontrado' });
@@ -3146,10 +3261,28 @@ function InvestigacaoPage({ data }) {
       {activeTab === 'politico' && (
         <div className="fade-in">
           <div className="glass-card" style={{ padding: 20, marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input className="search-input" placeholder="Nome..." value={polInput} onChange={e => setPolInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarPolitico()} style={{ flex: 1 }} />
-              <button className="btn btn-primary" onClick={buscarPolitico} disabled={loadingPol}>{loadingPol ? '...' : '🔍 Ficha'}</button>
-              <button className="btn" onClick={handleGerarResumoIA} style={{ background: 'var(--accent-blue)', color: 'white' }} disabled={!polData || loadingPol}>🤖 IA</button>
+            <div style={{ position: 'relative', maxWidth: 600 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input 
+                  className="search-input" 
+                  placeholder="Nome do Político..." 
+                  value={polInput} 
+                  onChange={e => setPolInput(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && buscarPolitico()} 
+                  style={{ flex: 1 }} 
+                />
+                <button className="btn btn-primary" onClick={buscarPolitico} disabled={loadingPol}>{loadingPol ? '...' : '🔍 Ficha'}</button>
+                <button className="btn" onClick={handleGerarResumoIA} style={{ background: 'var(--accent-blue)', color: 'white' }} disabled={!polData || loadingPol}>🤖 IA</button>
+              </div>
+              {polSuggestions.length > 0 && (
+                <div className="autocomplete-dropdown" style={{ left: 0, right: 150 }}>
+                  {polSuggestions.map(s => (
+                    <div key={s} className="autocomplete-item" onClick={() => { setPolInput(s); setPolSuggestions([]); }}>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {polData && polData.id ? (
@@ -3377,6 +3510,121 @@ function SenadoPage() {
   );
 }
 
+// ─── PÁGINA DADOS LEGISLATIVOS ────────────────────────────────────────────────
+function ProposicoesPage() {
+  const [proposicoes, setProposicoes] = useState([]);
+  const [partidos, setPartidos] = useState([]);
+  const [eventos, setEventos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState('proposicoes');
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetchProposicoes({ itens: 20 }),
+      fetchPartidos(),
+      fetchEventos({ itens: 10 })
+    ]).then(([p, pt, ev]) => {
+      setProposicoes(p || []);
+      setPartidos(pt || []);
+      setEventos(ev || []);
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">DADOS LEGISLATIVOS</div>
+        <div className="page-desc">Proposições, Partidos e Eventos da Câmara em tempo real</div>
+      </div>
+
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+          {[
+            { id: 'proposicoes', label: 'Proposições', icon: '📝' },
+            { id: 'partidos', label: 'Partidos', icon: '🚩' },
+            { id: 'eventos', label: 'Eventos', icon: '📅' }
+          ].map(t => (
+            <div key={t.id} onClick={() => setActiveSubTab(t.id)}
+              style={{
+                padding: '14px 24px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                borderBottom: activeSubTab === t.id ? '2px solid var(--accent-teal)' : 'none',
+                color: activeSubTab === t.id ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: activeSubTab === t.id ? 'rgba(61,153,150,0.05)' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: 8
+              }}
+            >
+              <span>{t.icon}</span> {t.label}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+              <div className="spinner" style={{ marginBottom: 10 }} />
+              Sincronizando com a API da Câmara...
+            </div>
+          ) : (
+            <div className="fade-in">
+              {activeSubTab === 'proposicoes' && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>Tipo</th><th>Número/Ano</th><th>Ementa</th></tr>
+                    </thead>
+                    <tbody>
+                      {proposicoes.map((p, i) => (
+                        <tr key={i}>
+                          <td><span className="badge badge-teal">{p.siglaTipo}</span></td>
+                          <td className="font-mono" style={{ fontSize: 11 }}>{p.numero}/{p.ano}</td>
+                          <td style={{ fontSize: 12, maxWidth: 400 }} className="truncate" title={p.ementa}>{p.ementa}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {activeSubTab === 'partidos' && (
+                <div className="grid-3">
+                  {partidos.map((p, i) => (
+                    <div key={i} className="glass-card" style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, background: 'var(--bg-tertiary)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', color: 'var(--accent-teal)' }}>
+                        {p.sigla}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{p.nome}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>ID: {p.id}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeSubTab === 'eventos' && (
+                <div className="space-y-3">
+                  {eventos.map((e, i) => (
+                    <div key={i} className="glass-card" style={{ padding: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span className="badge badge-amber">{e.tipoEvento}</span>
+                        <span className="font-mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>{e.dataHoraInicio?.split('T')[0]}</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 4 }}>{e.descricao}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Local: {e.localCamara?.nome || 'Não informado'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── API FETCH CEAP ───────────────────────────────────────────────────────────
 async function fetchCEAP(ano = null, mandato = '2023-2026') {
   const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ceap-data`;
@@ -3516,6 +3764,7 @@ export default function App() {
     { id: 'social', label: 'Social & Servidores', icon: 'shield', badge: 'HOT', badgeType: 'red' },
     { id: 'investigacao', label: 'Modo Investigação', icon: 'search', badge: 'NOVO', badgeType: 'red', section: 'INVESTIGAÇÃO' },
     { id: 'ia', label: 'Assistente IA', icon: 'eye', badge: 'IA', badgeType: 'red' },
+    { id: 'proposicoes', label: 'Dados Legislativos', icon: 'live' },
     { id: 'hall', label: 'Hall da Vergonha', icon: 'chart' },
     { id: 'cep', label: 'Busca por CEP', icon: 'map' },
     { id: 'senado', label: 'Senado Federal', icon: 'deputies', badge: 'BETA', badgeType: 'amber', section: 'SENADO' },
@@ -3608,25 +3857,33 @@ export default function App() {
         </div>
 
         <div className="page">
-          {page === 'overview' && <OverviewPage data={data} />}
-          {page === 'deputies' && <DeputadosPage data={data} />}
-          {page === 'buscar' && <BuscarPage data={data} />}
-          {page === 'comparar' && <CompararPage data={data} />}
-          {page === 'anomalia' && <AnomaliaPage data={data} />}
-          {page === 'live' && <LivePage />}
-          {page === 'mapa' && <MapaPage data={data} />}
-          {page === 'rede' && <RedePage data={data} />}
-          {page === 'heatmap' && <HeatmapPage data={data} />}
-          {page === 'setores' && <SetoresPage data={data} />}
-          {page === 'emendas' && <EmendasPage data={data} />}
-          {page === 'patrimonio' && <PatrimonioPage data={data} />}
-          {page === 'financiadores' && <FinanciadoresPage data={data} />}
-          {page === 'social' && <SocialServidoresPage />}
-          {page === 'investigacao' && <InvestigacaoPage data={data} />}
-          {page === 'ia' && <IAPage data={data} />}
-          {page === 'hall' && <HallPage data={data} />}
-          {page === 'cep' && <CEPPage data={data} />}
-          {page === 'senado' && <SenadoPage />}
+          {(() => {
+            const nomes = [...new Set(data.map(r => r.txNomeParlamentar))].sort();
+            return (
+              <>
+                {page === 'overview' && <OverviewPage data={data} />}
+                {page === 'deputies' && <DeputadosPage data={data} />}
+                {page === 'buscar' && <BuscarPage data={data} />}
+                {page === 'comparar' && <CompararPage data={data} />}
+                {page === 'anomalia' && <AnomaliaPage data={data} />}
+                {page === 'live' && <LivePage />}
+                {page === 'mapa' && <MapaPage data={data} />}
+                {page === 'rede' && <RedePage data={data} nomes={nomes} />}
+                {page === 'heatmap' && <HeatmapPage data={data} />}
+                {page === 'setores' && <SetoresPage data={data} />}
+                {page === 'emendas' && <EmendasPage data={data} nomes={nomes} />}
+                {page === 'patrimonio' && <PatrimonioPage data={data} nomes={nomes} />}
+                {page === 'financiadores' && <FinanciadoresPage data={data} nomes={nomes} />}
+                {page === 'social' && <SocialServidoresPage />}
+                {page === 'investigacao' && <InvestigacaoPage data={data} nomes={nomes} />}
+                {page === 'ia' && <IAPage data={data} />}
+                {page === 'hall' && <HallPage data={data} />}
+                {page === 'cep' && <CEPPage data={data} />}
+                {page === 'senado' && <SenadoPage />}
+                {page === 'proposicoes' && <ProposicoesPage data={data} />}
+              </>
+            );
+          })()}
         </div>
       </main>
     </div>

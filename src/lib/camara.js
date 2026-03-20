@@ -50,3 +50,73 @@ export async function fetchDeputadoDetails(depId) {
     return null;
   }
 }
+
+export async function fetchDeputadoDespesas(depId) {
+  try {
+    const r = await fetch(`${BASE_URL}/deputados/${depId}/despesas?ordem=DESC&ordenarPor=ano`);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function fetchDeputadoDiscursos(depId) {
+  try {
+    const r = await fetch(`${BASE_URL}/deputados/${depId}/discursos?ordem=DESC&ordenarPor=dataHoraInicio`);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function fetchProposicoes(siglaTipo = "", numero = "", ano = "") {
+  try {
+    let url = `${BASE_URL}/proposicoes?ordem=DESC&ordenarPor=id`;
+    if (siglaTipo) url += `&siglaTipo=${siglaTipo}`;
+    if (numero) url += `&numero=${numero}`;
+    if (ano) url += `&ano=${ano}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function fetchProposicaoDetails(propId) {
+  try {
+    const r = await fetch(`${BASE_URL}/proposicoes/${propId}`);
+    const d = await r.json();
+    return d.dados || null;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+export async function fetchPartidos() {
+  try {
+    const r = await fetch(`${BASE_URL}/partidos?ordem=ASC&ordenarPor=sigla&itens=100`);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export async function fetchEventos() {
+  try {
+    const r = await fetch(`${BASE_URL}/eventos?ordem=DESC&ordenarPor=dataHoraInicio`);
+    const d = await r.json();
+    return d.dados || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}

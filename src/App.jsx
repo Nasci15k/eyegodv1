@@ -630,26 +630,7 @@ const fmtFull = (v) => `R$ ${(v||0).toLocaleString('pt-BR', {minimumFractionDigi
 const fmtN = (v) => (v||0).toLocaleString('pt-BR');
 const colors = ['#e04545','#d4a03a','#3d9996','#4682b4','#9b59b6','#34a853','#e67e22','#1abc9c','#e74c3c','#f39c12'];
 
-// ─── API ─────────────────────────────────────────────────────────────────────
-async function fetchCEAP(ano = null, mandato = '2023-2026') {
-  try {
-    const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ceap-data`;
-    const url = ano ? `${base}?ano=${ano}` : `${base}?mandato=${mandato}`;
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    console.log(`✅ ${json.total} registros — ${json.mandato}`);
-    return json.data || [];
-  } catch (err) {
-    console.error('Falha CEAP:', err);
-    return null;
-  }
-}
+
     
     
 

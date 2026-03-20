@@ -52,6 +52,10 @@ async function fetchTSE(path, timeoutMs = 10000) {
  * Busca candidaturas por nome — tenta múltiplas variações e eleições
  */
 export async function fetchCandidaturasTSE(nomeBusca) {
+ // Tenta endpoint específico de deputado federal
+const data = await fetchTSE(
+  `/candidatura/buscar/${eleicao.ano}/BR/${eleicao.id}/cargo/6/candidatos?nome=${q}`
+);
   const partes = nomeBusca.trim().split(' ').filter(Boolean);
   const tentativas = [
     nomeBusca,

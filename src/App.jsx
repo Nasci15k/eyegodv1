@@ -3745,7 +3745,8 @@ const h = Math.max(6, (d.total / (maxDia || 1)) * 110);
           <div className="section-header"><span className="section-dot amber" /><span>POR MÊS DO ANO</span></div>
           <div style={{ display: 'flex', gap: 4, justifyContent: 'space-around', alignItems: 'flex-end', height: 120, marginBottom: 8 }}>
             {heatMes.map((d, i) => {
-              const h = Math.max(4, (d.total / maxMes) * 100);
+              const h = Math.max(4, (d.total / (maxMes || 1)) * 110);
+height: `${h}px`
               return (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 }}>
                   <div style={{ width: '100%', maxWidth: 32, height: `${h}%`, borderRadius: '3px 3px 0 0', background: getHeatColor(d.total, maxMes) }} />

@@ -54,7 +54,8 @@ async function fetchTSE(path, timeoutMs = 15000) {
  */
 export async function fetchCandidaturasTSE(nomeBusca, anoEleicao = '2022') {
   const eleicao = ELEICOES[anoEleicao] || ELEICOES['2022'];
-  const q = encodeURIComponent(nomeBusca);
+  const primeiroNome = nomeBusca.split(' ')[0];
+const q = encodeURIComponent(primeiroNome);
  
   try {
     // Tenta na eleição selecionada primeiro

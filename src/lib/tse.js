@@ -1,82 +1,85 @@
 /**
- * TSE — Tribunal Superior Eleitoral v2.0
- * DivulgaCandContas + dados eleitorais completos
- * Via proxy Cloudflare Worker (necessário por CORS)
+ * TSE — Tribunal Superior Eleitoral v3.0
+ * Tenta direto primeiro (sem proxy), fallback via proxy
  */
  
 import { PROXY_URL } from './cgu.js';
  
 const TSE_BASE = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1';
  
-// Eleições disponíveis para consulta
 export const ELEICOES = {
-  '2024': { id: '2045202024', ano: '2024', descricao: 'Eleições Municipais 2024' },
-  '2022': { id: '2045202022', ano: '2022', descricao: 'Eleições Gerais 2022' },
-  '2020': { id: '2045202020', ano: '2020', descricao: 'Eleições Municipais 2020' },
-  '2018': { id: '2030402018', ano: '2018', descricao: 'Eleições Gerais 2018' },
+  '2024': { id: '2045202024', ano: '2024' },
+  '2022': { id: '2045202022', ano: '2022' },
+  '2020': { id: '2045202020', ano: '2020' },
+  '2018': { id: '2030402018', ano: '2018' },
 };
  
-// ─── Core fetch via proxy ─────────────────────────────────────────────────────
-async function fetchTSE(path, timeoutMs = 15000) {
+// ─── Core fetch — tenta direto, depois proxy ──────────────────────────────────
+async function fetchTSE(path, timeoutMs = 10000) {
   const targetUrl = `${TSE_BASE}${path}`;
-  const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
  
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), timeoutMs);
- 
+  // 1. Tenta direto (browser pode conseguir sem proxy)
   try {
-    const res = await fetch(proxyUrl, {
-      signal: controller.signal,
+    const res = await fetch(targetUrl, {
       headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
     });
-    clearTimeout(tid);
- 
-    if (!res.ok) {
-      console.warn(`TSE HTTP ${res.status} para ${path}`);
-      return null;
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 0) return JSON.parse(text);
     }
+  } catch {}
  
-    const text = await res.text();
-    if (!text || text.trim().length === 0) return null;
-    return JSON.parse(text);
-  } catch (err) {
-    clearTimeout(tid);
-    if (err.name !== 'AbortError') console.error(`Erro TSE [${path}]:`, err.message);
-    return null;
-  }
+  // 2. Fallback via proxy
+  try {
+    const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(proxyUrl, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 0) return JSON.parse(text);
+    }
+  } catch {}
+ 
+  return null;
 }
  
 // ─── CANDIDATURAS ─────────────────────────────────────────────────────────────
  
 /**
- * Busca candidaturas por nome
- * Pesquisa em múltiplas eleições automaticamente
+ * Busca candidaturas por nome — tenta múltiplas variações e eleições
  */
-export async function fetchCandidaturasTSE(nomeBusca, anoEleicao = '2022') {
-  const eleicao = ELEICOES[anoEleicao] || ELEICOES['2022'];
-  const primeiroNome = nomeBusca.split(' ')[0];
-const q = encodeURIComponent(primeiroNome);
+export async function fetchCandidaturasTSE(nomeBusca) {
+  const partes = nomeBusca.trim().split(' ').filter(Boolean);
+  const tentativas = [
+    nomeBusca,
+    partes.slice(0, 2).join(' '),
+    partes.slice(0, 3).join(' '),
+    partes[0],
+    partes[partes.length - 1],
+    partes.slice(0, 1).concat(partes.slice(-1)).join(' '),
+  ].filter((v, i, a) => v && a.indexOf(v) === i);
  
-  try {
-    // Tenta na eleição selecionada primeiro
-    const data = await fetchTSE(`/candidatura/buscar/${eleicao.ano}/BR/${eleicao.id}/candidato/${q}`);
-    const candidatos = data?.candidatos || [];
- 
-    // Se não encontrou, tenta em outros anos
-    if (candidatos.length === 0) {
-      for (const [ano, el] of Object.entries(ELEICOES)) {
-        if (ano === anoEleicao) continue;
-        const d2 = await fetchTSE(`/candidatura/buscar/${el.ano}/BR/${el.id}/candidato/${q}`);
-        const c2 = d2?.candidatos || [];
-        if (c2.length > 0) return normalizarCandidatos(c2, ano);
-      }
+  for (const [anoKey, eleicao] of Object.entries(ELEICOES)) {
+    for (const tentativa of tentativas) {
+      try {
+        const q = encodeURIComponent(tentativa);
+        const data = await fetchTSE(
+          `/candidatura/buscar/${eleicao.ano}/BR/${eleicao.id}/candidato/${q}`
+        );
+        const candidatos = data?.candidatos || [];
+        if (candidatos.length > 0) {
+          console.log(`✅ TSE encontrou "${tentativa}" em ${anoKey}`);
+          return normalizarCandidatos(candidatos, anoKey);
+        }
+      } catch { continue; }
     }
- 
-    return normalizarCandidatos(candidatos, anoEleicao);
-  } catch (err) {
-    console.error('Erro fetchCandidaturasTSE:', err);
-    return [];
   }
+ 
+  console.warn(`⚠ TSE: nenhum resultado para "${nomeBusca}"`);
+  return [];
 }
  
 function normalizarCandidatos(candidatos, ano) {
@@ -112,38 +115,20 @@ export async function fetchBensTSE(idCandidato, anoEleicao = '2022', siglaUf = '
  
   return bens.map(b => ({
     ordem: b.ordemBem,
-    tipo: b.tipoBem?.descricao || b.descricaoTipoBem,
-    descricao: b.descricaoBem,
-    valor: parseFloat(b.valorBem?.toString().replace(',', '.') || '0'),
+    tipo: b.tipoBem?.descricao || b.descricaoTipoBem || 'Bem',
+    descricao: b.descricaoBem || '',
+    valor: parseFloat(
+      String(b.valorBem || '0').replace(/\./g, '').replace(',', '.')
+    ) || 0,
     valorFormatado: b.valorBemStr,
   }));
 }
  
+// ─── PRESTAÇÃO DE CONTAS (financiadores) ─────────────────────────────────────
+ 
 /**
- * Calcula patrimônio total e evolução
+ * Receitas de campanha (doadores)
  */
-export async function fetchPatrimonioEvoluido(nome) {
-  const resultados = [];
- 
-  for (const [ano, eleicao] of Object.entries(ELEICOES)) {
-    const q = encodeURIComponent(nome);
-    const data = await fetchTSE(`/candidatura/buscar/${eleicao.ano}/BR/${eleicao.id}/candidato/${q}`);
-    const cands = data?.candidatos || [];
- 
-    if (cands.length > 0) {
-      const cand = cands[0];
-      const bens = await fetchBensTSE(cand.id || cand.sqCandidato, ano);
-      const total = bens.reduce((s, b) => s + (b.valor || 0), 0);
-      resultados.push({ ano, total, nBens: bens.length });
-    }
-  }
- 
-  return resultados.sort((a, b) => a.ano - b.ano);
-}
- 
-// ─── PRESTAÇÃO DE CONTAS ─────────────────────────────────────────────────────
- 
-/** Receitas de campanha (doadores) */
 export async function fetchPrestacaoContasTSE(idCandidato, anoEleicao = '2022', siglaUf = 'BR') {
   const eleicao = ELEICOES[anoEleicao] || ELEICOES['2022'];
  
@@ -151,41 +136,57 @@ export async function fetchPrestacaoContasTSE(idCandidato, anoEleicao = '2022', 
     `/prestador/consulta/receitas/${eleicao.ano}/${eleicao.id}/1/${siglaUf}/${idCandidato}`
   );
  
-  return data || [];
-}
+  if (!data) return [];
+  const receitas = data?.receitas || data || [];
+  if (!Array.isArray(receitas)) return [];
  
-// ─── FILIADOS ────────────────────────────────────────────────────────────────
- 
-/**
- * Filiados a partido — requer dump no Supabase
- * Link direto para a base oficial do TSE
- */
-export async function fetchFiliadosPartido(sigla, uf) {
-  return {
-    error: 'A base de filiados (19GB) requer importação local.',
-    linkTSE: `https://filiacao.tse.jus.br/ConsultaFiliados/consulta`,
-    linkDados: `https://dadosabertos.tse.jus.br/dataset/filiados-partidos`,
-    instrucao: 'Baixe o arquivo do partido desejado e importe no Supabase para consulta via SQL.',
-  };
+  return receitas.map(r => ({
+    nomeDoador: r.nomeDoador || r.nome || 'N/D',
+    cpfCnpj: r.cpfCnpjDoador || '',
+    valor: parseFloat(String(r.valor || '0').replace(',', '.')) || 0,
+    dataRecebimento: r.dataRecebimento || '',
+    origem: r.origemRecurso || '',
+  }));
 }
  
 // ─── RESULTADO ELEITORAL ─────────────────────────────────────────────────────
  
-/** Resultado por município/cargo */
+/**
+ * Resultado por município/cargo
+ */
 export async function fetchResultadoEleitoral(anoEleicao, uf, cargo) {
   const eleicao = ELEICOES[anoEleicao] || ELEICOES['2022'];
- 
   const data = await fetchTSE(
     `/eleicao/resultados/${eleicao.ano}/${uf}/${eleicao.id}/${cargo}/resultado`
   );
- 
   return data?.resultados || [];
 }
  
-// ─── BATCH COMPLETO ───────────────────────────────────────────────────────────
+// ─── EVOLUÇÃO PATRIMONIAL ─────────────────────────────────────────────────────
+ 
+/**
+ * Busca patrimônio em múltiplas eleições para calcular evolução
+ */
+export async function fetchPatrimonioEvoluido(nome) {
+  const resultados = [];
+  const cands = await fetchCandidaturasTSE(nome);
+  if (!cands.length) return [];
+ 
+  for (const [ano] of Object.entries(ELEICOES)) {
+    try {
+      const bens = await fetchBensTSE(cands[0].id, ano, cands[0].uf || 'BR');
+      const total = bens.reduce((s, b) => s + (b.valor || 0), 0);
+      if (total > 0) resultados.push({ ano, total, nBens: bens.length });
+    } catch { continue; }
+  }
+ 
+  return resultados.sort((a, b) => a.ano - b.ano);
+}
+ 
+// ─── DOSSIÊ COMPLETO ─────────────────────────────────────────────────────────
+ 
 /**
  * Dossiê completo TSE de um candidato
- * Retorna candidatura + bens + prestação de contas + evolução patrimonial
  */
 export async function fetchDossierTSE(nome) {
   const candidatos = await fetchCandidaturasTSE(nome);
@@ -199,32 +200,34 @@ export async function fetchDossierTSE(nome) {
   ]);
  
   const patrimonioTotal = bens.reduce((s, b) => s + b.valor, 0);
+  const alertas = gerarAlertasTSE(cand, bens, patrimonioTotal, evolucao);
  
-  return {
-    candidato: cand,
-    bens,
-    patrimonioTotal,
-    prestacao,
-    evolucaoPatrimonial: evolucao,
-    alertas: gerarAlertasTSE(cand, bens, patrimonioTotal, evolucao),
-  };
+  return { candidato: cand, bens, patrimonioTotal, prestacao, evolucaoPatrimonial: evolucao, alertas };
 }
  
 function gerarAlertasTSE(cand, bens, total, evolucao) {
   const alertas = [];
- 
   if (total > 5_000_000) {
     alertas.push({ nivel: 'red', msg: `Patrimônio declarado de R$ ${(total/1e6).toFixed(1)}M — acima da média parlamentar.` });
   }
- 
   if (evolucao.length >= 2) {
     const primeiro = evolucao[0].total;
     const ultimo = evolucao[evolucao.length - 1].total;
-    if (ultimo > primeiro * 3) {
+    if (ultimo > primeiro * 3 && primeiro > 0) {
       alertas.push({ nivel: 'red', msg: `Patrimônio cresceu ${((ultimo/primeiro - 1)*100).toFixed(0)}% entre ${evolucao[0].ano} e ${evolucao[evolucao.length-1].ano}.` });
     }
   }
- 
   return alertas;
+}
+ 
+// ─── FILIADOS ────────────────────────────────────────────────────────────────
+ 
+export async function fetchFiliadosPartido(sigla, uf) {
+  return {
+    error: 'A base de filiados (19GB) requer importação local.',
+    linkTSE: `https://filiacao.tse.jus.br/ConsultaFiliados/consulta`,
+    linkDados: `https://dadosabertos.tse.jus.br/dataset/filiados-partidos`,
+    instrucao: 'Baixe o arquivo do partido desejado e importe no Supabase para consulta via SQL.',
+  };
 }
  

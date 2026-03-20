@@ -1518,6 +1518,7 @@ function BuscarPage({ data }) {
   const [suggestions, setSuggestions] = useState([]);
   const [dossierMode, setDossierMode] = useState(false);
   const [loadingExtra, setLoadingExtra] = useState(false);
+  const [activeTab, setActiveTab] = useState('ceap');
 
   // Estados do Dossiê
   const [dossierData, setDossierData] = useState({

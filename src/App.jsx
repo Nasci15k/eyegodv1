@@ -2872,27 +2872,101 @@ function SenadoPage() {
   );
 }
 
-// ─── APP ─────────────────────────────────────────────────────────────────────
+// ─── API FETCH CEAP ───────────────────────────────────────────────────────────
+async function fetchCEAP(ano = null, mandato = '2023-2026') {
+  const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ceap-data`;
+  const headers = {
+    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json'
+  };
+
+  const MANDATOS = {
+    '2023-2026': ['2024', '2023', '2025'],
+    '2019-2022': ['2022', '2021', '2020', '2019'],
+    '2015-2018': ['2018', '2017', '2016', '2015'],
+    '2011-2014': ['2014', '2013', '2012', '2011'],
+    '2008-2010': ['2010', '2009', '2008'],
+  };
+
+  try {
+    if (ano) {
+      const res = await fetch(`${base}?ano=${ano}`, { headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      console.log(`✅ Ano ${ano}: ${json.total} registros`);
+      return json.data || [];
+    }
+
+    // Mandato: busca ano por ano
+    const anos = MANDATOS[mandato] || MANDATOS['2023-2026'];
+    let all = [];
+    for (const a of anos) {
+      try {
+        const res = await fetch(`${base}?ano=${a}`, { headers });
+        if (!res.ok) { console.warn(`Ano ${a} falhou: HTTP ${res.status}`); continue; }
+        const json = await res.json();
+        console.log(`✅ Ano ${a}: ${json.total} registros`);
+        if (json.data?.length) all = all.concat(json.data);
+      } catch (e) {
+        console.warn(`Ano ${a} erro:`, e);
+      }
+    }
+    console.log(`✅ Total mandato ${mandato}: ${all.length} registros`);
+    return all;
+  } catch (err) {
+    console.error('Falha CEAP:', err);
+    return null;
+  }
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState('overview');
-    const [data, setData] = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [anoSelecionado, setAnoSelecionado] = useState('mandato:2023-2026');
+  const [loadingMsg, setLoadingMsg] = useState('CARREGANDO DADOS PARLAMENTARES...');
+  const [anoSelecionado, setAnoSelecionado] = useState('2024');
+
+  const normalizar = (rows) => rows.map(r => ({
+    ...r,
+    txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
+    fornDiasAbertura: Math.floor(Math.random() * 2000),
+    diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
+  }));
 
   const trocarAno = async (valor) => {
-  setLoading(true);
-  setAnoSelecionado(valor);
-  try {
-    let ceapReal;
-    if (String(valor).startsWith('mandato:')) {
-      ceapReal = await fetchCEAP(null, valor.replace('mandato:', ''));
-    } else {
-      ceapReal = await fetchCEAP(valor);
+    setLoading(true);
+    setAnoSelecionado(valor);
+    try {
+      if (String(valor).startsWith('mandato:')) {
+        const mandato = valor.replace('mandato:', '');
+        const MANDATOS = {
+          '2023-2026': ['2024', '2023', '2025'],
+          '2019-2022': ['2022', '2021', '2020', '2019'],
+          '2015-2018': ['2018', '2017', '2016', '2015'],
+          '2011-2014': ['2014', '2013', '2012', '2011'],
+          '2008-2010': ['2010', '2009', '2008'],
+        };
+        const anos = MANDATOS[mandato] || MANDATOS['2023-2026'];
+        let all = [];
+        for (const a of anos) {
+          setLoadingMsg(`CARREGANDO ${a}... (${all.length.toLocaleString('pt-BR')} registros)`);
+          const rows = await fetchCEAP(a);
+          if (rows?.length) all = all.concat(normalizar(rows));
+        }
+        setData(all);
+      } else {
+        setLoadingMsg(`CARREGANDO ${valor}...`);
+        const rows = await fetchCEAP(valor);
+        setData(rows?.length ? normalizar(rows) : []);
+      }
+    } catch (e) {
+      console.error(e);
+      setData([]);
     }
-    setData(ceapReal?.length > 0 ? ceapReal : []);
-  } catch(e) { console.error(e); setData([]); }
-  setLoading(false);
-};
+    setLoading(false);
+    setLoadingMsg('CARREGANDO DADOS PARLAMENTARES...');
+  };
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -2902,14 +2976,10 @@ export default function App() {
 
     async function loadData() {
       try {
-        const ceapReal = await fetchCEAP(null, '2023-2026');
-        if (ceapReal && ceapReal.length > 0) {
-          setData(ceapReal.map(r => ({
-            ...r,
-            txtFornecedor: r.txtFornecedor || 'NÃO INFORMADO',
-            fornDiasAbertura: Math.floor(Math.random()*2000),
-            diaSemana: r.datEmissao ? new Date(r.datEmissao).getDay() : 1
-          })));
+        setLoadingMsg('CARREGANDO 2024...');
+        const rows = await fetchCEAP('2024');
+        if (rows?.length) {
+          setData(normalizar(rows));
         } else {
           setData([]);
         }
@@ -2921,7 +2991,6 @@ export default function App() {
     }
 
     loadData();
-
     return () => document.head.removeChild(style);
   }, []);
 
@@ -2949,7 +3018,7 @@ export default function App() {
       <style>{CSS}</style>
       <div style={{textAlign:'center'}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:48,letterSpacing:'0.15em',color:'#3d9996',marginBottom:16}}>OLHO DE DEUS</div>
-        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:'#7a7c88',marginBottom:20,letterSpacing:'0.1em'}}>CARREGANDO DADOS PARLAMENTARES...</div>
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:'#7a7c88',marginBottom:20,letterSpacing:'0.1em'}}>{loadingMsg}</div>
         <div style={{width:40,height:40,border:'2px solid #3d9996',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto'}}/>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -2958,7 +3027,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-logo">👁 OLHO DE DEUS</div>
@@ -2995,30 +3063,33 @@ export default function App() {
 
         <div className="sidebar-footer">
           <div style={{marginBottom:4,color:'var(--accent-teal)',fontWeight:600}}>OLHO DE DEUS v2.0</div>
-          <div>CEAP 2023–2025 · Dados Abertos</div>
+          <div>CEAP 2008–2025 · Dados Abertos</div>
           <div style={{color:'var(--border-hover)',marginTop:2}}>CC0 Domínio Público</div>
-          <div style={{marginTop:8,color:'var(--accent-teal)',fontSize:9}}>{data.length.toLocaleString('pt-BR')} transações · {new Set(data.map(r=>r.txNomeParlamentar)).size} deputados</div>
+          <div style={{marginTop:8,color:'var(--accent-teal)',fontSize:9}}>
+            {data.length.toLocaleString('pt-BR')} transações · {new Set(data.map(r=>r.txNomeParlamentar)).size} deputados
+          </div>
         </div>
       </aside>
 
-      {/* MAIN */}
       <main className="main">
         <div className="topbar">
           <div className="topbar-title">
             {navItems.find(n=>n.id===page)?.label || 'OLHO DE DEUS'}
           </div>
           <div className="topbar-source">
-            {page === 'senado' ? 'Senado Federal · legis.senado.leg.br' : 'CEAP · Câmara dos Deputados'}
+            {page === 'senado' ? 'Senado Federal · legis.senado.leg.br' : `CEAP ${anoSelecionado} · Câmara dos Deputados`}
           </div>
-           <select className="select-input" value={anoSelecionado} onChange={e => trocarAno(e.target.value)} style={{fontSize:11}}>
-  <option value="mandato:2023-2026">🏛 Mandato 2023–2026</option>
-  <option value="mandato:2019-2022">🏛 Mandato 2019–2022</option>
-  <option value="mandato:2015-2018">🏛 Mandato 2015–2018</option>
-  <option value="mandato:2011-2014">🏛 Mandato 2011–2014</option>
-  <option value="mandato:2008-2010">🏛 Mandato 2008–2010</option>
-  <option disabled>──────────</option>
-  {[2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008].map(a => <option key={a} value={a}>{a}</option>)}
-</select>
+          <select className="select-input" value={anoSelecionado} onChange={e => trocarAno(e.target.value)} style={{fontSize:11}}>
+            <option value="mandato:2023-2026">🏛 Mandato 2023–2026 (lento)</option>
+            <option value="mandato:2019-2022">🏛 Mandato 2019–2022 (lento)</option>
+            <option value="mandato:2015-2018">🏛 Mandato 2015–2018 (lento)</option>
+            <option value="mandato:2011-2014">🏛 Mandato 2011–2014 (lento)</option>
+            <option value="mandato:2008-2010">🏛 Mandato 2008–2010 (lento)</option>
+            <option disabled>──────────</option>
+            {[2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008].map(a =>
+              <option key={a} value={a}>{a}</option>
+            )}
+          </select>
           <div className="topbar-live">
             <div className="live-dot"/>
             DADOS ABERTOS

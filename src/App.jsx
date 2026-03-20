@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from './lib/supabase.js';
 import { fetchCEP, fetchCNPJ } from './lib/brasilapi.js';
 import { fetchSenadores } from './lib/senado.js';
-import { fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares, fetchViagensGoverno, fetchContratos, fetchConvenios } from './lib/cgu.js';
+import { fetchCEIS, fetchCNEP, fetchCEAF, fetchEmendasParlamentares, fetchViagensGoverno, fetchContratos, fetchConvenios, fetchBolsaFamilia, fetchServidores, fetchLicitacoes, fetchCEPIM } from './lib/cgu.js';
 import { fetchEscandalos } from './lib/news.js';
 import { fetchCandidaturasTSE, fetchBensTSE, fetchPrestacaoContasTSE, fetchFiliadosPartido } from './lib/tse.js';
 import { fetchVotacoesDeputado, fetchDeputadoDetails } from './lib/camara.js';
@@ -2595,6 +2595,234 @@ function FinanciadoresPage({ data }) {
   );
 }
 
+function SocialServidoresPage() {
+  const [activeSubTab, setActiveSubTab] = useState('beneficios');
+  const [search, setSearch] = useState('');
+  const [mesAno, setMesAno] = useState('202401');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const apiKey = localStorage.getItem('cguKey') || 'demo';
+
+  const buscar = async () => {
+    setLoading(true);
+    let res;
+    if (activeSubTab === 'beneficios') {
+      res = await fetchBolsaFamilia(search, mesAno, apiKey);
+    } else if (activeSubTab === 'servidores') {
+      res = await fetchServidores(search, apiKey);
+    } else if (activeSubTab === 'licitacoes') {
+      res = await fetchLicitacoes(search, apiKey); // search aqui seria o código IBGE
+    }
+    setResults(res?.data || []);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">PAINEL SOCIAL & SERVIDORES</div>
+        <div className="page-desc">Investigação de benefícios, servidores federais e gastos municipais</div>
+      </div>
+
+      <div className="glass-card" style={{padding:0, overflow:'hidden', marginBottom:16}}>
+        <div style={{display:'flex', borderBottom:'1px solid var(--border)'}}>
+          {['beneficios', 'servidores', 'licitacoes'].map(t => (
+            <div key={t} onClick={()=>setActiveSubTab(t)}
+              style={{padding:'14px 24px', cursor:'pointer', fontSize:13, fontWeight:600, 
+                borderBottom: activeSubTab===t ? '2px solid var(--accent-red)' : 'none',
+                color: activeSubTab===t ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: activeSubTab===t ? 'rgba(224,69,69,0.05)' : 'transparent'}}
+            >
+              {t === 'beneficios' ? 'Bolsa Família' : t === 'servidores' ? 'Servidores Federais' : 'Licitações'}
+            </div>
+          ))}
+        </div>
+        <div style={{padding:20}}>
+          <div style={{display:'flex', gap:10}}>
+            <input className="search-input" 
+              placeholder={activeSubTab==='licitacoes' ? 'Código IBGE do Município...' : 'CPF (somente números)...'} 
+              value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1}}/>
+            {activeSubTab === 'beneficios' && (
+              <input className="search-input" placeholder="MMAAAA (ex: 012024)" value={mesAno} onChange={e=>setMesAno(e.target.value)} style={{width:120}}/>
+            )}
+            <button className="btn btn-primary" onClick={buscar} disabled={loading}>{loading ? '...' : '🔍 Consultar'}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card" style={{padding:20}}>
+        {loading ? <div style={{textAlign:'center', padding:40, color:'var(--text-muted)'}}>Consultando base do Governo Federal...</div> : (
+          <div style={{overflowX:'auto'}}>
+            <table className="data-table">
+              <thead>
+                {activeSubTab === 'beneficios' ? (
+                  <tr><th>Beneficiário</th><th>Município</th><th>Valor</th><th>Mês/Ano</th></tr>
+                ) : activeSubTab === 'servidores' ? (
+                  <tr><th>Nome</th><th>Cargo</th><th>Órgão Lotação</th><th>UF</th></tr>
+                ) : (
+                  <tr><th>Objeto</th><th>Unidade Gestora</th><th>Modalidade</th><th>Valor</th></tr>
+                )
+                }
+              </thead>
+              <tbody>
+                {results.length > 0 ? results.map((r,i) => (
+                  <tr key={i}>
+                    {activeSubTab === 'beneficios' ? (
+                      <>
+                        <td>{r.beneficiario?.nome || 'N/A'}</td>
+                        <td>{r.municipio?.nomeIBGE} - {r.municipio?.uf?.sigla}</td>
+                        <td className="money">{fmt(r.valor)}</td>
+                        <td>{r.dataReferencia}</td>
+                      </>
+                    ) : activeSubTab === 'servidores' ? (
+                      <>
+                        <td>{r.servidor?.pessoa?.nome || 'N/A'}</td>
+                        <td>{r.cargo?.descricao || 'N/A'}</td>
+                        <td>{r.orgaoLotacao?.nome || 'N/A'}</td>
+                        <td>{r.ufLotacao || 'N/A'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{fontSize:11, maxWidth:300}} className="truncate">{r.objeto || 'N/A'}</td>
+                        <td>{r.unidadeGestora?.nome || 'N/A'}</td>
+                        <td>{r.modalidadeLicitacao?.descricao || 'N/A'}</td>
+                        <td className="money">{fmt(r.valorEstimado || r.valorHomologado)}</td>
+                      </>
+                    )}
+                  </tr>
+                )) : <tr><td colSpan="4" style={{textAlign:'center', padding:40, color:'var(--text-muted)'}}>Nenhum registro encontrado para esta consulta.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InvestigacaoPage() {
+  const [target, setTarget] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const apiKey = localStorage.getItem('cguKey') || 'demo';
+
+  const investigar = async () => {
+    if (!target) return;
+    setLoading(true);
+    const clean = target.replace(/\D/g, '');
+    const isCNPJ = clean.length === 14;
+
+    try {
+      const promises = [
+        fetchCEIS(clean, apiKey),
+        fetchCNEP(clean, apiKey),
+        fetchCEPIM(clean, apiKey)
+      ];
+
+      if (!isCNPJ) {
+        promises.push(fetchCEAF(clean, apiKey));
+        promises.push(fetchBolsaFamilia(clean, '202401', apiKey));
+        promises.push(fetchServidores(clean, apiKey));
+        promises.push(fetchCandidaturasTSE(target)); // Tenta buscar por nome se não for CPF, ou usa o que tiver
+      } else {
+        promises.push(fetchContratos(clean, apiKey));
+      }
+
+      const res = await Promise.all(promises);
+      setResults({
+        ceis: res[0]?.data || [],
+        cnep: res[1]?.data || [],
+        cepim: res[2]?.data || [],
+        ceaf: !isCNPJ ? res[3]?.data || [] : [],
+        bolsa: !isCNPJ ? res[4]?.data || [] : [],
+        servidores: !isCNPJ ? res[5]?.data || [] : [],
+        tse: !isCNPJ ? res[6]?.candidatos || [] : [],
+        contratos: isCNPJ ? res[3]?.data || [] : []
+      });
+    } catch (err) {
+      console.error("Erro na investigação:", err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-in">
+      <div className="page-header">
+        <div className="page-title">MODO INVESTIGAÇÃO 360°</div>
+        <div className="page-desc">Busca profunda em todas as bases governamentais (Câmara, TSE, CGU)</div>
+      </div>
+
+      <div className="glass-card" style={{padding:20, marginBottom:16}}>
+        <div style={{display:'flex', gap:10}}>
+          <input className="search-input" placeholder="Digite CPF, CNPJ ou Nome para investigar..." value={target} onChange={e=>setTarget(e.target.value)} style={{flex:1}}/>
+          <button className="btn btn-primary" onClick={investigar} disabled={loading} style={{background:'var(--accent-red)'}}>
+            {loading ? 'ANALISANDO...' : '🔬 INICIAR VARREDURA'}
+          </button>
+        </div>
+      </div>
+
+      {results && (
+        <div className="grid-2">
+          <div className="glass-card" style={{padding:20}}>
+            <div className="section-header"><span className="section-dot red"/><span>SANÇÕES & IMPEDIMENTOS</span></div>
+            <div className="space-y-4">
+              <div style={{fontSize:12}}>
+                <strong>CEIS/CNEP:</strong> {results.ceis.length + results.cnep.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
+              </div>
+              <div style={{fontSize:12}}>
+                <strong>CEPIM (ONGs Impedidas):</strong> {results.cepim.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
+              </div>
+              <div style={{fontSize:12}}>
+                <strong>CEAF (Expulsões):</strong> {results.ceaf.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
+              </div>
+            </div>
+            {results.ceis.length > 0 && (
+              <div style={{marginTop:16, padding:10, background:'rgba(224,69,69,0.1)', borderRadius:8, fontSize:11}}>
+                <strong>DETALHE CEIS:</strong> {results.ceis[0].tipoSanclao?.descricao} - {results.ceis[0].orgaoSancionador?.nome}
+              </div>
+            )}
+          </div>
+
+          <div className="glass-card" style={{padding:20}}>
+            <div className="section-header"><span className="section-dot amber"/><span>VÍNCULOS PÚBLICOS & BENEFÍCIOS</span></div>
+            <div className="space-y-4">
+              <div style={{fontSize:12}}>
+                <strong>Servidor Federal:</strong> {results.servidores.length > 0 ? <span className="badge badge-amber">LOCALIZADO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
+              </div>
+              <div style={{fontSize:12}}>
+                <strong>Bolsa Família:</strong> {results.bolsa.length > 0 ? <span className="badge badge-amber">RECEBIDO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
+              </div>
+              <div style={{fontSize:12}}>
+                <strong>Candidaturas TSE:</strong> {results.tse.length > 0 ? <span className="badge badge-purple">{results.tse.length} REGISTROS</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {results && results.contratos?.length > 0 && (
+        <div className="glass-card" style={{padding:20, marginTop:16}}>
+          <div className="section-header"><span>CONTRATOS COM O GOVERNO FEDERAL</span></div>
+          <table className="data-table">
+            <thead>
+              <tr><th>Órgão</th><th>Objeto</th><th>Valor</th></tr>
+            </thead>
+            <tbody>
+              {results.contratos.slice(0,5).map((c,i) => (
+                <tr key={i}>
+                  <td>{c.orgaoEntidade?.nome}</td>
+                  <td style={{fontSize:11}}>{c.objeto?.slice(0,100)}...</td>
+                  <td className="money">{fmt(c.valorFinal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PÁGINA ÍNDICE DE SUSPEIÇÃO POR SETOR ──────────────────────────────────────
 function SetoresPage({ data }) {
   const sectorData = useMemo(() => {
@@ -3335,6 +3563,7 @@ export default function App() {
     {id:'emendas', label:'Emendas & Obras', icon:'chart', section:'DADOS TÉCNICOS'},
     {id:'patrimonio', label:'Patrimônio TSE', icon:'anomaly'},
     {id:'financiadores', label:'Financiadores', icon:'compare'},
+    {id:'social', label:'Social & Servidores', icon:'shield', badge:'HOT', badgeType:'red'},
     {id:'investigacao', label:'Modo Investigação', icon:'search', badge:'NOVO', badgeType:'red', section:'INVESTIGAÇÃO'},
     {id:'ia', label:'Assistente IA', icon:'eye', badge:'IA', badgeType:'red'},
     {id:'hall', label:'Hall da Vergonha', icon:'chart'},
@@ -3440,6 +3669,7 @@ export default function App() {
           {page === 'emendas'      && <EmendasPage data={data}/>}
           {page === 'patrimonio'   && <PatrimonioPage data={data}/>}
           {page === 'financiadores'&& <FinanciadoresPage data={data}/>}
+          {page === 'social'       && <SocialServidoresPage/>}
           {page === 'investigacao' && <InvestigacaoPage data={data}/>}
           {page === 'ia'           && <IAPage data={data}/>}
           {page === 'hall'         && <HallPage data={data}/>}

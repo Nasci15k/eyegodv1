@@ -2,18 +2,28 @@
 // API pública via DivulgaCandContas (Usado via proxy de CORS para acesso root no navegador)
 
 const TSE_URL = "https://divulgacandcontas.tse.jus.br/divulga/rest/v1";
+const PROXY_URL = 'https://exposedgovbr.black-spectra-suporte.workers.dev/';
+
+async function safeFetchJson(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text || text.trim().length === 0) return null;
+    return JSON.parse(text);
+  } catch (err) {
+    console.error("Fetch/JSON Error:", err);
+    return null;
+  }
+}
 
 export async function fetchCandidaturasTSE(nomeBusca) {
   try {
     const q = encodeURIComponent(nomeBusca);
-    // Proxy utilizado preventivamente pois o WAF do TSE bloqueia headers complexos do React
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`${TSE_URL}/candidatura/buscar/2022/BR/2045202022/candidato/${q}`)}`;
-    
-    const res = await fetch(proxyUrl);
-    if (!res.ok) return [];
-    
-    const data = await res.json();
-    return data.candidatos || [];
+    const targetUrl = `${TSE_URL}/candidatura/buscar/2022/BR/2045202022/candidato/${q}`;
+    const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+    const data = await safeFetchJson(proxyUrl);
+    return data?.candidatos || [];
   } catch (err) {
     console.error("Erro TSE Candidaturas:", err);
     return [];
@@ -22,11 +32,10 @@ export async function fetchCandidaturasTSE(nomeBusca) {
 
 export async function fetchBensTSE(idCandidato, idEleicao = '2045202022', siglaUf = 'BR') {
   try {
-     // Para pegar os bens o ID oficial gerado pela busca anterior é mandatório
-     const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(`${TSE_URL}/candidatura/buscar/2022/${siglaUf}/${idEleicao}/candidato/${idCandidato}`)}`;
-     const res = await fetch(proxy);
-     const data = await res.json();
-     return data.bens || [];
+     const targetUrl = `${TSE_URL}/candidatura/buscar/2022/${siglaUf}/${idEleicao}/candidato/${idCandidato}`;
+     const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+     const data = await safeFetchJson(proxyUrl);
+     return data?.bens || [];
   } catch (e) {
     console.error("Erro TSE Bens:", e);
     return [];
@@ -35,14 +44,12 @@ export async function fetchBensTSE(idCandidato, idEleicao = '2045202022', siglaU
 
 export async function fetchPrestacaoContasTSE(idCandidato, idEleicao = '2045202022', siglaUf = 'BR') {
   try {
-     // Pegando doações (receitas) declaradas no DivulgaCandContas
-     // proxying para evitar WAF
-     const urlOficial = `${TSE_URL}/prestador/consulta/receitas/2022/${idEleicao}/1/${siglaUf}/${idCandidato}`;
-     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlOficial)}`;
-     const res = await fetch(proxyUrl);
-     return await res.json();
+     const targetUrl = `${TSE_URL}/prestador/consulta/receitas/2022/${idEleicao}/1/${siglaUf}/${idCandidato}`;
+     const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+     const data = await safeFetchJson(proxyUrl);
+     return data || [];
   } catch (e) {
-    console.error("Erro TSE Prestação de Contas (Doadores Laranjas):", e);
+    console.error("Erro TSE Prestação de Contas:", e);
     return [];
   }
 }

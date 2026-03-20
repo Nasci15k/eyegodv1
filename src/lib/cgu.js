@@ -1,19 +1,19 @@
-/**
+**
  * Portal da Transparência / CGU — Bateria Completa v2.0
  * Requer chave gratuita em: https://portaldatransparencia.gov.br/api-de-dados
  * Proxy: Seu Cloudflare Worker (atualizar PROXY_URL abaixo)
  */
- 
+
 const BASE_URL = 'https://api.portaldatransparencia.gov.br/api-de-dados';
 export const PROXY_URL = 'https://SEU-WORKER.workers.dev'; // ← ATUALIZE AQUI
- 
+
 // ─── Core fetch com retry e fallback ─────────────────────────────────────────
 async function fetchCGU(endpoint, apiKey, method = 'GET', bodyData = null) {
   if (!apiKey) return { error: 'Chave da CGU ausente. Gere em portaldatransparencia.gov.br/api-de-dados' };
- 
+
   const targetUrl = `${BASE_URL}${endpoint}`;
   const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
- 
+
   const options = {
     method,
     headers: {
@@ -22,16 +22,16 @@ async function fetchCGU(endpoint, apiKey, method = 'GET', bodyData = null) {
       'Accept': 'application/json',
     },
   };
- 
+
   if (bodyData && method !== 'GET') {
     options.body = JSON.stringify(bodyData);
   }
- 
+
   // Tenta 2x antes de desistir
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const res = await fetch(proxyUrl, options);
- 
+
       if (res.status === 401) return { error: 'Chave da API CGU inválida ou expirada.' };
       if (res.status === 403) return { error: 'Acesso negado. Verifique as permissões da sua chave CGU.' };
       if (res.status === 404) return { data: [], total: 0 };
@@ -41,10 +41,10 @@ async function fetchCGU(endpoint, apiKey, method = 'GET', bodyData = null) {
         return { error: 'Rate limit atingido na API CGU. Aguarde alguns segundos.' };
       }
       if (!res.ok) return { error: `Erro API CGU: HTTP ${res.status}` };
- 
+
       const text = await res.text();
       if (!text || text.trim().length === 0) return { data: [], total: 0 };
- 
+
       try {
         const data = JSON.parse(text);
         // A CGU pode retornar array direto ou objeto com paginação
@@ -60,39 +60,39 @@ async function fetchCGU(endpoint, apiKey, method = 'GET', bodyData = null) {
     }
   }
 }
- 
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
- 
+
 // ─── SANÇÕES ─────────────────────────────────────────────────────────────────
- 
+
 /** CEIS — Cadastro de Empresas Inidôneas e Suspensas */
 export async function fetchCEIS(cnpjRef, apiKey) {
   const clean = cnpjRef.replace(/\D/g, '');
   const result = await fetchCGU(`/ceis?codigoSancionado=${clean}&pagina=1`, apiKey);
   return enrichSancao(result, 'CEIS');
 }
- 
+
 /** CNEP — Cadastro Nacional de Empresas Punidas */
 export async function fetchCNEP(cnpjRef, apiKey) {
   const clean = cnpjRef.replace(/\D/g, '');
   const result = await fetchCGU(`/cnep?codigoSancionado=${clean}&pagina=1`, apiKey);
   return enrichSancao(result, 'CNEP');
 }
- 
+
 /** CEAF — Cadastro de Expulsões da Administração Federal (servidores) */
 export async function fetchCEAF(cpfRef, apiKey) {
   const clean = cpfRef.replace(/\D/g, '');
   const result = await fetchCGU(`/ceaf?cpfSancionado=${clean}&pagina=1`, apiKey);
   return enrichSancao(result, 'CEAF');
 }
- 
+
 /** CEPIM — Entidades privadas sem fins lucrativos impedidas */
 export async function fetchCEPIM(cnpjRef, apiKey) {
   const clean = cnpjRef.replace(/\D/g, '');
   const result = await fetchCGU(`/cepim?cnpjSancionado=${clean}&pagina=1`, apiKey);
   return enrichSancao(result, 'CEPIM');
 }
- 
+
 function enrichSancao(result, tipo) {
   if (result.error) return result;
   const data = result.data || [];
@@ -105,9 +105,9 @@ function enrichSancao(result, tipo) {
       : `Nada consta no ${tipo}`,
   };
 }
- 
+
 // ─── EMENDAS PARLAMENTARES ───────────────────────────────────────────────────
- 
+
 /** Emendas parlamentares por autor e ano */
 export async function fetchEmendasParlamentares(autor, ano, apiKey) {
   return fetchCGU(
@@ -115,7 +115,7 @@ export async function fetchEmendasParlamentares(autor, ano, apiKey) {
     apiKey
   );
 }
- 
+
 /** Emendas impositivas (pix-parlamentar) */
 export async function fetchEmendasImpositivas(cpf, ano = 2024, apiKey) {
   const clean = cpf.replace(/\D/g, '');
@@ -124,9 +124,9 @@ export async function fetchEmendasImpositivas(cpf, ano = 2024, apiKey) {
     apiKey
   );
 }
- 
+
 // ─── VIAGENS ─────────────────────────────────────────────────────────────────
- 
+
 /** Viagens a serviço de servidores/parlamentares */
 export async function fetchViagensGoverno(cpf, apiKey, ano = 2024) {
   const clean = cpf.replace(/\D/g, '');
@@ -135,9 +135,9 @@ export async function fetchViagensGoverno(cpf, apiKey, ano = 2024) {
     apiKey
   );
 }
- 
+
 // ─── CONTRATOS E LICITAÇÕES ──────────────────────────────────────────────────
- 
+
 /** Contratos do governo com determinado CNPJ */
 export async function fetchContratos(cnpj, apiKey) {
   const clean = cnpj.replace(/\D/g, '');
@@ -146,7 +146,7 @@ export async function fetchContratos(cnpj, apiKey) {
     apiKey
   );
 }
- 
+
 /** Licitações por município IBGE */
 export async function fetchLicitacoes(municipioIBGE, apiKey) {
   return fetchCGU(
@@ -154,9 +154,9 @@ export async function fetchLicitacoes(municipioIBGE, apiKey) {
     apiKey
   );
 }
- 
+
 // ─── PROGRAMAS SOCIAIS ────────────────────────────────────────────────────────
- 
+
 /** Bolsa Família por CPF/NIS */
 export async function fetchBolsaFamilia(cpf, mesAno = '202401', apiKey) {
   const clean = cpf.replace(/\D/g, '');
@@ -165,7 +165,7 @@ export async function fetchBolsaFamilia(cpf, mesAno = '202401', apiKey) {
     apiKey
   );
 }
- 
+
 /** Auxílio Brasil / PETI */
 export async function fetchPETI(cpf, mesAno = '202401', apiKey) {
   const clean = cpf.replace(/\D/g, '');
@@ -174,7 +174,7 @@ export async function fetchPETI(cpf, mesAno = '202401', apiKey) {
     apiKey
   );
 }
- 
+
 /** Seguro Defeso */
 export async function fetchSeguroDefeso(cpf, mesAno = '202401', apiKey) {
   const clean = cpf.replace(/\D/g, '');
@@ -183,9 +183,9 @@ export async function fetchSeguroDefeso(cpf, mesAno = '202401', apiKey) {
     apiKey
   );
 }
- 
+
 // ─── SERVIDORES ───────────────────────────────────────────────────────────────
- 
+
 /** Verifica se CPF é servidor público federal */
 export async function fetchServidores(cpf, apiKey) {
   const clean = cpf.replace(/\D/g, '');
@@ -194,9 +194,9 @@ export async function fetchServidores(cpf, apiKey) {
     apiKey
   );
 }
- 
+
 // ─── DESPESAS GOVERNO ─────────────────────────────────────────────────────────
- 
+
 /** Despesas do Poder Executivo por ano */
 export async function fetchDespesasPoderExecutivo(ano, apiKey) {
   return fetchCGU(
@@ -204,7 +204,19 @@ export async function fetchDespesasPoderExecutivo(ano, apiKey) {
     apiKey
   );
 }
- 
+
+// ─── CONVÊNIOS ────────────────────────────────────────────────────────────────
+
+/** Convênios e transferências voluntárias */
+export async function fetchConvenios(filtros = {}, apiKey) {
+  const params = new URLSearchParams({ pagina: 1, tamanhoPagina: 50 });
+  if (filtros.cnpj) params.set('cnpjConcedente', filtros.cnpj.replace(/\D/g, ''));
+  if (filtros.cnpjBeneficiario) params.set('cnpjBeneficiario', filtros.cnpjBeneficiario.replace(/\D/g, ''));
+  if (filtros.ano) params.set('ano', filtros.ano);
+  if (filtros.situacao) params.set('situacao', filtros.situacao);
+  return fetchCGU(`/convenios?${params.toString()}`, apiKey);
+}
+
 // ─── BATCH: Varredura completa de CNPJ ────────────────────────────────────────
 /**
  * Executa CEIS + CNEP + CEPIM de uma vez
@@ -216,10 +228,10 @@ export async function fetchVarreduraCNPJ(cnpj, apiKey) {
     fetchCNEP(cnpj, apiKey),
     fetchCEPIM(cnpj, apiKey),
   ]);
- 
+
   const temSancao = ceis.temSancao || cnep.temSancao || cepim.temSancao;
   const totalSancoes = (ceis.data?.length || 0) + (cnep.data?.length || 0) + (cepim.data?.length || 0);
- 
+
   return {
     ceis,
     cnep,
@@ -232,4 +244,3 @@ export async function fetchVarreduraCNPJ(cnpj, apiKey) {
       : '✅ Nada consta nas bases de sanções CGU',
   };
 }
- 

@@ -719,11 +719,12 @@ function DossierBlock({ title, icon, children, alerts = [], active = false }) {
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt = (v) => {
-  if (!v && v !== 0) return "R$ 0";
-  if (v >= 1e9) return `R$ ${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `R$ ${(v / 1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `R$ ${(v / 1e3).toFixed(0)}K`;
-  return `R$ ${v.toFixed(0)}`;
+  const n = parseFloat(v);
+  if (!n && n !== 0) return "R$ 0";
+  if (n >= 1e9) return `R$ ${(n/1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `R$ ${(n/1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `R$ ${(n/1e3).toFixed(0)}K`;
+  return `R$ ${n.toFixed(0)}`;
 };
 const fmtFull = (v) => `R$ ${(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const fmtN = (v) => (v || 0).toLocaleString('pt-BR');

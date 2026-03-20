@@ -5,7 +5,7 @@
  */
 
 const BASE_URL = 'https://api.portaldatransparencia.gov.br/api-de-dados';
-export const PROXY_URL = 'https://SEU-WORKER.workers.dev'; // ← ATUALIZE AQUI
+export const PROXY_URL = 'https://exposedgovbr.black-spectra-suporte.workers.dev';
 
 // ─── Core fetch com retry e fallback ─────────────────────────────────────────
 async function fetchCGU(endpoint, apiKey, method = 'GET', bodyData = null) {

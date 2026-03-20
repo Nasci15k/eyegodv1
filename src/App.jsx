@@ -30,6 +30,7 @@ import {
 } from './lib/intelligence.js';
 import { gerarResumoInvestigativo } from './lib/ai.js';
 import { useDossier } from './lib/useDossier.js';
+import { executarCruzamentos, CATEGORIAS, NIVEIS } from './lib/cruzamentos.js'; // ← ADICIONAR ESTA LINHA
 
 // Alias para evitar conflito com a fetchProposicoes local do App
 const CGUKEY = () => localStorage.getItem('cguKey') || import.meta.env?.VITE_CGU_KEY || '';

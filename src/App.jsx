@@ -1214,6 +1214,301 @@ function DeputadosPage({ data }) {
     </div>
   );
 }
+/**
+ * CruzamentosTab — Renderiza os 50 cruzamentos com explicações
+ * Adicionar como uma aba dentro da BuscarPage
+ *
+ * USO no BuscarPage:
+ *   1. Importar: import { executarCruzamentos, CATEGORIAS, NIVEIS } from './lib/cruzamentos.js';
+ *   2. Calcular: const cruzamentos = useMemo(() => executarCruzamentos(ceapRows, dados), [ceapRows, dados]);
+ *   3. Adicionar tab 'cruzamentos' na lista de tabs
+ *   4. Renderizar: {activeTab === 'cruzamentos' && <CruzamentosTab resultado={cruzamentos} />}
+ */
+
+function CruzamentosTab({ resultado }) {
+  const [filtroCategoria, setFiltroCategoria] = useState('TODOS');
+  const [filtroNivel, setFiltroNivel] = useState('TODOS');
+  const [expandido, setExpandido] = useState(null);
+  const [soSuspeitos, setSoSuspeitos] = useState(false);
+
+  if (!resultado) return (
+    <div className="glass-card" style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ fontSize: 32, opacity: 0.2, marginBottom: 12 }}>🔬</div>
+      <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)', fontSize: 18, letterSpacing: '0.06em' }}>
+        AGUARDANDO DADOS
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+        Selecione um parlamentar para executar os cruzamentos
+      </div>
+    </div>
+  );
+
+  const { resultados, criticos, altos, medios, limpos, score } = resultado;
+
+  const filtrados = resultados.filter(r => {
+    if (soSuspeitos && r.nivel === 'LIMPO') return false;
+    if (filtroCategoria !== 'TODOS' && r.categoria !== filtroCategoria) return false;
+    if (filtroNivel !== 'TODOS' && r.nivel !== filtroNivel) return false;
+    return true;
+  });
+
+  const corNivel = (nivel) => {
+    const cores = { CRITICO: 'var(--accent-red)', ALTO: 'var(--accent-red)', MEDIO: 'var(--accent-amber)', BAIXO: '#34a853', LIMPO: '#34a853' };
+    return cores[nivel] || 'var(--text-muted)';
+  };
+
+  const bgNivel = (nivel) => {
+    const bgs = { CRITICO: 'rgba(224,69,69,0.1)', ALTO: 'rgba(224,69,69,0.06)', MEDIO: 'rgba(212,160,58,0.08)', BAIXO: 'rgba(52,168,83,0.06)', LIMPO: 'rgba(52,168,83,0.04)' };
+    return bgs[nivel] || 'transparent';
+  };
+
+  const iconCategoria = (cat) => {
+    const icons = { FINANCEIRO: '💰', SOCIETARIO: '🏢', TEMPORAL: '⏱', GEOGRAFICO: '📍', POLITICO: '🗳', JUDICIAL: '⚖', PATRIMONIAL: '🏛', ESTATISTICO: '📊', REDE: '🕸' };
+    return icons[cat] || '🔍';
+  };
+
+  const categorias = ['TODOS', ...new Set(resultados.map(r => r.categoria))];
+  const niveis = ['TODOS', 'CRITICO', 'ALTO', 'MEDIO', 'BAIXO', 'LIMPO'];
+
+  return (
+    <div className="fade-in">
+      {/* PAINEL DE SCORE GERAL */}
+      <div className="glass-card" style={{ padding: 20, marginBottom: 20, borderLeft: `4px solid ${score > 60 ? 'var(--accent-red)' : score > 30 ? 'var(--accent-amber)' : 'var(--status-low)'}` }}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Score visual */}
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div style={{
+              width: 90, height: 90, borderRadius: '50%',
+              border: `4px solid ${score > 60 ? 'var(--accent-red)' : score > 30 ? 'var(--accent-amber)' : 'var(--status-low)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexDirection: 'column',
+              background: `radial-gradient(circle, ${score > 60 ? 'rgba(224,69,69,0.1)' : 'rgba(61,153,150,0.1)'}, transparent)`
+            }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 30, letterSpacing: '0.02em', color: score > 60 ? 'var(--accent-red)' : score > 30 ? 'var(--accent-amber)' : 'var(--status-low)', lineHeight: 1 }}>
+                {score}
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase' }}>RISCO</div>
+            </div>
+          </div>
+
+          {/* Contadores */}
+          <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
+            {[
+              { label: 'CRÍTICOS', value: criticos, cor: 'var(--accent-red)' },
+              { label: 'ALTOS', value: altos, cor: '#e04545' },
+              { label: 'MÉDIOS', value: medios, cor: 'var(--accent-amber)' },
+              { label: 'LIMPOS', value: limpos, cor: 'var(--status-low)' },
+              { label: 'TOTAL', value: resultados.length, cor: 'var(--text-secondary)' },
+            ].map((c, i) => (
+              <div key={i} style={{ textAlign: 'center', minWidth: 60 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, color: c.cor, lineHeight: 1 }}>{c.value}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 }}>{c.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Barra de score */}
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>ÍNDICE DE SUSPEIÇÃO CONSOLIDADO</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: score > 60 ? 'var(--accent-red)' : 'var(--accent-amber)' }}>{score}/100</span>
+            </div>
+            <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${score}%`,
+                background: score > 60 ? 'linear-gradient(90deg, #e04545, #ff6b6b)' : score > 30 ? 'linear-gradient(90deg, #d4a03a, #f39c12)' : 'var(--status-low)',
+                borderRadius: 4,
+                transition: 'width 1s cubic-bezier(0.22,1,0.36,1)'
+              }} />
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+              {score >= 70 ? '⚠️ PERFIL DE ALTO RISCO — Recomenda-se investigação aprofundada'
+                : score >= 40 ? '🟡 ATENÇÃO — Indicadores moderados, monitorar'
+                : '🟢 Perfil dentro dos padrões esperados'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FILTROS */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {niveis.map(n => (
+            <button key={n} onClick={() => setFiltroNivel(n)}
+              className="btn"
+              style={{
+                fontSize: 10, padding: '4px 10px',
+                background: filtroNivel === n ? (n === 'CRITICO' || n === 'ALTO' ? 'rgba(224,69,69,0.2)' : n === 'MEDIO' ? 'rgba(212,160,58,0.2)' : n === 'LIMPO' ? 'rgba(52,168,83,0.2)' : 'rgba(61,153,150,0.2)') : 'var(--bg-tertiary)',
+                borderColor: filtroNivel === n ? corNivel(n) : 'var(--border)',
+                color: filtroNivel === n ? corNivel(n) : 'var(--text-muted)',
+              }}>
+              {n}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={soSuspeitos} onChange={e => setSoSuspeitos(e.target.checked)} />
+            APENAS SUSPEITOS
+          </label>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            {filtrados.length} cruzamentos
+          </span>
+        </div>
+      </div>
+
+      {/* FILTRO POR CATEGORIA */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        {categorias.map(cat => (
+          <button key={cat} onClick={() => setFiltroCategoria(cat)}
+            className="btn"
+            style={{
+              fontSize: 10, padding: '4px 10px',
+              background: filtroCategoria === cat ? 'rgba(61,153,150,0.15)' : 'var(--bg-tertiary)',
+              borderColor: filtroCategoria === cat ? 'var(--accent-teal)' : 'var(--border)',
+              color: filtroCategoria === cat ? 'var(--accent-teal)' : 'var(--text-muted)',
+            }}>
+            {cat === 'TODOS' ? '🔍 TODOS' : `${iconCategoria(cat)} ${cat}`}
+          </button>
+        ))}
+      </div>
+
+      {/* LISTA DE CRUZAMENTOS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtrados.map((r, i) => (
+          <div key={r.id}
+            className="glass-card"
+            style={{
+              padding: 0, overflow: 'hidden',
+              borderLeft: `3px solid ${corNivel(r.nivel)}`,
+              background: bgNivel(r.nivel),
+              cursor: 'pointer',
+            }}
+            onClick={() => setExpandido(expandido === r.id ? null : r.id)}
+          >
+            {/* HEADER DO CRUZAMENTO */}
+            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* ID + ícone */}
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', width: 28, flexShrink: 0, textAlign: 'center' }}>
+                {r.id}
+              </div>
+
+              {/* Ícone da categoria */}
+              <div style={{ fontSize: 16, flexShrink: 0 }}>{iconCategoria(r.categoria)}</div>
+
+              {/* Título + evidência principal */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: r.nivel === 'LIMPO' ? 'var(--text-secondary)' : 'var(--text-primary)', marginBottom: 2 }}>
+                  {r.titulo}
+                </div>
+                {r.encontrou && r.evidencias?.[0] && (
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }} className="truncate">
+                    → {r.evidencias[0]}
+                  </div>
+                )}
+              </div>
+
+              {/* Nível badge */}
+              <div style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+                  padding: '3px 8px', borderRadius: 4, textTransform: 'uppercase',
+                  background: bgNivel(r.nivel),
+                  color: corNivel(r.nivel),
+                  border: `1px solid ${corNivel(r.nivel)}40`,
+                }}>
+                  {r.nivel}
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.2s', transform: expandido === r.id ? 'rotate(180deg)' : 'none' }}>
+                  ▼
+                </span>
+              </div>
+            </div>
+
+            {/* EXPANSÃO — detalhes completos */}
+            {expandido === r.id && (
+              <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${corNivel(r.nivel)}20` }} className="fade-in">
+
+                {/* IMPACTO */}
+                <div style={{
+                  margin: '12px 0 10px',
+                  padding: '10px 14px',
+                  background: r.encontrou ? `${bgNivel(r.nivel)}` : 'rgba(52,168,83,0.05)',
+                  borderRadius: 8,
+                  border: `1px solid ${r.encontrou ? corNivel(r.nivel) : 'var(--status-low)'}30`,
+                }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>IMPACTO</div>
+                  <div style={{ fontSize: 13, color: r.encontrou ? corNivel(r.nivel) : 'var(--status-low)', fontWeight: 600 }}>
+                    {r.encontrou ? '⚠ ' : '✓ '}{r.impacto}
+                  </div>
+                </div>
+
+                {/* EVIDÊNCIAS */}
+                {r.encontrou && r.evidencias?.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                      EVIDÊNCIAS ENCONTRADAS
+                    </div>
+                    {r.evidencias.map((e, j) => (
+                      <div key={j} style={{
+                        display: 'flex', gap: 8, alignItems: 'flex-start',
+                        padding: '5px 0', borderBottom: j < r.evidencias.length - 1 ? '1px solid rgba(35,35,40,0.4)' : 'none'
+                      }}>
+                        <span style={{ color: corNivel(r.nivel), flexShrink: 0, fontSize: 11 }}>▸</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{e}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* EXPLICAÇÃO */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                    POR QUE ISSO É SUSPEITO?
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {r.explicacao}
+                  </div>
+                </div>
+
+                {/* METODOLOGIA */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                    METODOLOGIA
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, fontFamily: 'var(--font-mono)', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {r.metodologia}
+                  </div>
+                </div>
+
+                {/* BASE LEGAL */}
+                <div style={{
+                  display: 'flex', gap: 8, alignItems: 'center',
+                  padding: '8px 12px', background: 'rgba(70,130,180,0.06)', borderRadius: 6,
+                  border: '1px solid rgba(70,130,180,0.2)'
+                }}>
+                  <span style={{ fontSize: 12 }}>⚖</span>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>BASE LEGAL</div>
+                    <div style={{ fontSize: 11, color: 'var(--accent-blue)' }}>{r.base_legal}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {filtrados.length === 0 && (
+        <div className="glass-card" style={{ padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 32, opacity: 0.2, marginBottom: 12 }}>🔍</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nenhum cruzamento com os filtros selecionados</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function BuscarPage({ data }) {
   const [search, setSearch] = useState('');

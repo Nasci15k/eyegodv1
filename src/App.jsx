@@ -2700,128 +2700,6 @@ function SocialServidoresPage() {
   );
 }
 
-function InvestigacaoPage() {
-  const [target, setTarget] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const apiKey = localStorage.getItem('cguKey') || 'demo';
-
-  const investigar = async () => {
-    if (!target) return;
-    setLoading(true);
-    const clean = target.replace(/\D/g, '');
-    const isCNPJ = clean.length === 14;
-
-    try {
-      const promises = [
-        fetchCEIS(clean, apiKey),
-        fetchCNEP(clean, apiKey),
-        fetchCEPIM(clean, apiKey)
-      ];
-
-      if (!isCNPJ) {
-        promises.push(fetchCEAF(clean, apiKey));
-        promises.push(fetchBolsaFamilia(clean, '202401', apiKey));
-        promises.push(fetchServidores(clean, apiKey));
-        promises.push(fetchCandidaturasTSE(target)); // Tenta buscar por nome se não for CPF, ou usa o que tiver
-      } else {
-        promises.push(fetchContratos(clean, apiKey));
-      }
-
-      const res = await Promise.all(promises);
-      setResults({
-        ceis: res[0]?.data || [],
-        cnep: res[1]?.data || [],
-        cepim: res[2]?.data || [],
-        ceaf: !isCNPJ ? res[3]?.data || [] : [],
-        bolsa: !isCNPJ ? res[4]?.data || [] : [],
-        servidores: !isCNPJ ? res[5]?.data || [] : [],
-        tse: !isCNPJ ? res[6]?.candidatos || [] : [],
-        contratos: isCNPJ ? res[3]?.data || [] : []
-      });
-    } catch (err) {
-      console.error("Erro na investigação:", err);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="fade-in">
-      <div className="page-header">
-        <div className="page-title">MODO INVESTIGAÇÃO 360°</div>
-        <div className="page-desc">Busca profunda em todas as bases governamentais (Câmara, TSE, CGU)</div>
-      </div>
-
-      <div className="glass-card" style={{padding:20, marginBottom:16}}>
-        <div style={{display:'flex', gap:10}}>
-          <input className="search-input" placeholder="Digite CPF, CNPJ ou Nome para investigar..." value={target} onChange={e=>setTarget(e.target.value)} style={{flex:1}}/>
-          <button className="btn btn-primary" onClick={investigar} disabled={loading} style={{background:'var(--accent-red)'}}>
-            {loading ? 'ANALISANDO...' : '🔬 INICIAR VARREDURA'}
-          </button>
-        </div>
-      </div>
-
-      {results && (
-        <div className="grid-2">
-          <div className="glass-card" style={{padding:20}}>
-            <div className="section-header"><span className="section-dot red"/><span>SANÇÕES & IMPEDIMENTOS</span></div>
-            <div className="space-y-4">
-              <div style={{fontSize:12}}>
-                <strong>CEIS/CNEP:</strong> {results.ceis.length + results.cnep.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
-              </div>
-              <div style={{fontSize:12}}>
-                <strong>CEPIM (ONGs Impedidas):</strong> {results.cepim.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
-              </div>
-              <div style={{fontSize:12}}>
-                <strong>CEAF (Expulsões):</strong> {results.ceaf.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}
-              </div>
-            </div>
-            {results.ceis.length > 0 && (
-              <div style={{marginTop:16, padding:10, background:'rgba(224,69,69,0.1)', borderRadius:8, fontSize:11}}>
-                <strong>DETALHE CEIS:</strong> {results.ceis[0].tipoSanclao?.descricao} - {results.ceis[0].orgaoSancionador?.nome}
-              </div>
-            )}
-          </div>
-
-          <div className="glass-card" style={{padding:20}}>
-            <div className="section-header"><span className="section-dot amber"/><span>VÍNCULOS PÚBLICOS & BENEFÍCIOS</span></div>
-            <div className="space-y-4">
-              <div style={{fontSize:12}}>
-                <strong>Servidor Federal:</strong> {results.servidores.length > 0 ? <span className="badge badge-amber">LOCALIZADO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
-              </div>
-              <div style={{fontSize:12}}>
-                <strong>Bolsa Família:</strong> {results.bolsa.length > 0 ? <span className="badge badge-amber">RECEBIDO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
-              </div>
-              <div style={{fontSize:12}}>
-                <strong>Candidaturas TSE:</strong> {results.tse.length > 0 ? <span className="badge badge-purple">{results.tse.length} REGISTROS</span> : <span className="badge badge-teal">NÃO CONSTA</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {results && results.contratos?.length > 0 && (
-        <div className="glass-card" style={{padding:20, marginTop:16}}>
-          <div className="section-header"><span>CONTRATOS COM O GOVERNO FEDERAL</span></div>
-          <table className="data-table">
-            <thead>
-              <tr><th>Órgão</th><th>Objeto</th><th>Valor</th></tr>
-            </thead>
-            <tbody>
-              {results.contratos.slice(0,5).map((c,i) => (
-                <tr key={i}>
-                  <td>{c.orgaoEntidade?.nome}</td>
-                  <td style={{fontSize:11}}>{c.objeto?.slice(0,100)}...</td>
-                  <td className="money">{fmt(c.valorFinal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── PÁGINA ÍNDICE DE SUSPEIÇÃO POR SETOR ──────────────────────────────────────
 function SetoresPage({ data }) {
@@ -3000,6 +2878,7 @@ function IAPage({ data }) {
 function InvestigacaoPage({ data }) {
   const [activeTab, setActiveTab] = useState('cnpj');
 
+
   // --- Estados CNPJ ---
   const [cnpjMarcado, setCnpjMarcado] = useState('');
   const [cnpjInput, setCnpjInput] = useState('');
@@ -3027,7 +2906,35 @@ function InvestigacaoPage({ data }) {
   const [polResumoIA, setPolResumoIA] = useState('');
   const [loadingPol, setLoadingPol] = useState(false);
 
+  // --- Estado Varredura 360 ---
+  const [scanTarget, setScanTarget] = useState('');
+  const [scanResults, setScanResults] = useState(null);
+  const [loadingScan, setLoadingScan] = useState(false);
+
   useEffect(() => { if(cguKey) localStorage.setItem('cguKey', cguKey); }, [cguKey]);
+
+  const pagarVarredura = async () => {
+    if (!scanTarget) return;
+    setLoadingScan(true);
+    const clean = scanTarget.replace(/\D/g, '');
+    const isCNPJ = clean.length === 14;
+    try {
+      const promises = [fetchCEIS(clean, cguKey), fetchCNEP(clean, cguKey), fetchCEPIM(clean, cguKey)];
+      if (!isCNPJ) {
+        promises.push(fetchCEAF(clean, cguKey), fetchBolsaFamilia(clean, '202401', cguKey), fetchServidores(clean, cguKey), fetchCandidaturasTSE(scanTarget));
+      } else {
+        promises.push(fetchContratos(clean, cguKey));
+      }
+      const res = await Promise.all(promises);
+      setScanResults({
+        ceis: res[0]?.data || [], cnep: res[1]?.data || [], cepim: res[2]?.data || [],
+        ceaf: !isCNPJ ? res[3]?.data || [] : [], bolsa: !isCNPJ ? res[4]?.data || [] : [],
+        servidores: !isCNPJ ? res[5]?.data || [] : [], tse: !isCNPJ ? res[6]?.candidatos || [] : [],
+        contratos: isCNPJ ? res[3]?.data || [] : []
+      });
+    } catch (e) { console.error(e); }
+    setLoadingScan(false);
+  };
 
   const pagamentosParaCNPJ = useMemo(() => {
     if (!cnpjMarcado) return [];
@@ -3141,8 +3048,40 @@ function InvestigacaoPage({ data }) {
       <div style={{display:'flex',gap:16,marginBottom:20}}>
          <button className={`btn ${activeTab==='cnpj'?'btn-primary':''}`} onClick={()=>setActiveTab('cnpj')}>🏭 Investigar Fornecedor</button>
          <button className={`btn ${activeTab==='politico'?'btn-primary':''}`} onClick={()=>setActiveTab('politico')}>👔 Dossiê TSE</button>
+         <button className={`btn ${activeTab==='varredura'?'btn-primary':''}`} onClick={()=>setActiveTab('varredura')}>🔬 Varredura 360°</button>
          <button className={`btn ${activeTab==='congresso'?'btn-primary':''}`} onClick={()=>setActiveTab('congresso')}>🏛 Visão Congresso</button>
       </div>
+
+      {activeTab === 'varredura' && (
+        <div className="fade-in">
+          <div className="glass-card" style={{padding:20, marginBottom:16}}>
+            <div style={{display:'flex', gap:10}}>
+              <input className="search-input" placeholder="CPF, CNPJ ou Nome..." value={scanTarget} onChange={e=>setScanTarget(e.target.value)} style={{flex:1}}/>
+              <button className="btn btn-primary" onClick={pagarVarredura} disabled={loadingScan} style={{background:'var(--accent-red)'}}>{loadingScan ? '...' : '🔍 Varredura'}</button>
+            </div>
+          </div>
+          {scanResults && (
+            <div className="grid-2">
+              <div className="glass-card" style={{padding:20}}>
+                <div className="section-header"><span className="section-dot red"/><span>SANÇÕES & IMPEDIMENTOS</span></div>
+                <div className="space-y-4">
+                  <div style={{fontSize:12}}><strong>CEIS/CNEP:</strong> {scanResults.ceis.length + scanResults.cnep.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}</div>
+                  <div style={{fontSize:12}}><strong>CEPIM (ONGs):</strong> {scanResults.cepim.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}</div>
+                  <div style={{fontSize:12}}><strong>CEAF (Expulsões):</strong> {scanResults.ceaf.length > 0 ? <span className="badge badge-red">CONSTA</span> : <span className="badge badge-teal">NADA CONSTA</span>}</div>
+                </div>
+              </div>
+              <div className="glass-card" style={{padding:20}}>
+                <div className="section-header"><span className="section-dot amber"/><span>VÍNCULOS & BENEFÍCIOS</span></div>
+                <div className="space-y-4">
+                  <div style={{fontSize:12}}><strong>Servidor Federal:</strong> {scanResults.servidores.length > 0 ? <span className="badge badge-amber">LOCALIZADO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}</div>
+                  <div style={{fontSize:12}}><strong>Bolsa Família:</strong> {scanResults.bolsa.length > 0 ? <span className="badge badge-amber">RECEBIDO</span> : <span className="badge badge-teal">NÃO CONSTA</span>}</div>
+                  <div style={{fontSize:12}}><strong>Candidaturas TSE:</strong> {scanResults.tse.length > 0 ? <span className="badge badge-purple">{scanResults.tse.length} REGISTROS</span> : <span className="badge badge-teal">NÃO CONSTA</span>}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {activeTab === 'cnpj' && (
         <div className="fade-in">

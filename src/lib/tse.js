@@ -32,10 +32,10 @@ export async function fetchCandidaturasTSE(nomeBusca) {
 
 export async function fetchBensTSE(idCandidato, idEleicao = '2045202022', siglaUf = 'BR') {
   try {
-     const targetUrl = `${TSE_URL}/candidatura/buscar/2022/${siglaUf}/${idEleicao}/candidato/${idCandidato}`;
-     const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
-     const data = await safeFetchJson(proxyUrl);
-     return data?.bens || [];
+    const targetUrl = `${TSE_URL}/candidatura/buscar/2022/${siglaUf}/${idEleicao}/candidato/${idCandidato}`;
+    const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+    const data = await safeFetchJson(proxyUrl);
+    return data?.bens || [];
   } catch (e) {
     console.error("Erro TSE Bens:", e);
     return [];
@@ -44,10 +44,10 @@ export async function fetchBensTSE(idCandidato, idEleicao = '2045202022', siglaU
 
 export async function fetchPrestacaoContasTSE(idCandidato, idEleicao = '2045202022', siglaUf = 'BR') {
   try {
-     const targetUrl = `${TSE_URL}/prestador/consulta/receitas/2022/${idEleicao}/1/${siglaUf}/${idCandidato}`;
-     const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
-     const data = await safeFetchJson(proxyUrl);
-     return data || [];
+    const targetUrl = `${TSE_URL}/prestador/consulta/receitas/2022/${idEleicao}/1/${siglaUf}/${idCandidato}`;
+    const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
+    const data = await safeFetchJson(proxyUrl);
+    return data || [];
   } catch (e) {
     console.error("Erro TSE Prestação de Contas:", e);
     return [];

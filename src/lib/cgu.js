@@ -6,24 +6,24 @@ const PROXY_URL = 'https://exposedgovbr.black-spectra-suporte.workers.dev/';
 
 async function fetchCGU(endpoint, apiKey) {
   if (!apiKey) return { error: 'Chave da CGU ausente.' };
-  
+
   try {
     const targetUrl = `${BASE_URL}${endpoint}`;
     // Usando o proxy dedicado no Cloudflare que suporta o header 'chave-api-dados'
     const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(targetUrl)}`;
-    
+
     const res = await fetch(proxyUrl, {
       headers: { 'chave-api-dados': apiKey }
     });
-    
+
     if (!res.ok) {
       if (res.status === 401) return { error: 'Chave da API CGU inválida.' };
       return { error: `Erro API CGU: ${res.status}` };
     }
-    
+
     const text = await res.text();
     if (!text || text.trim().length === 0) return { data: [] };
-    
+
     try {
       const data = JSON.parse(text);
       return { data };
@@ -72,7 +72,7 @@ export async function fetchContratos(cnpj, apiKey) {
 }
 
 export async function fetchConvenios(autor, apiKey) {
-  return fetchCGU(`/convenios?tipoConsulta=0&pagina=1`, apiKey); 
+  return fetchCGU(`/convenios?tipoConsulta=0&pagina=1`, apiKey);
 }
 
 // NOVAS CONSULTAS SOLICITADAS
@@ -108,8 +108,8 @@ export async function fetchLicitacoes(municipioIBGE, apiKey) {
 
 export async function fetchNotasFiscais(cnpjEmitente, cnpjDestinatario, apiKey) {
   let query = '';
-  if (cnpjEmitente) query += `&cnpjEmitente=${cnpjEmitente.replace(/\D/g,'')}`;
-  if (cnpjDestinatario) query += `&cnpjDestinatario=${cnpjDestinatario.replace(/\D/g,'')}`;
+  if (cnpjEmitente) query += `&cnpjEmitente=${cnpjEmitente.replace(/\D/g, '')}`;
+  if (cnpjDestinatario) query += `&cnpjDestinatario=${cnpjDestinatario.replace(/\D/g, '')}`;
   return fetchCGU(`/notas-fiscais?pagina=1${query}`, apiKey);
 }
 

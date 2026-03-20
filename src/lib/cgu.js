@@ -1,4 +1,4 @@
-**
+/**
  * Portal da Transparência / CGU — Bateria Completa v2.0
  * Requer chave gratuita em: https://portaldatransparencia.gov.br/api-de-dados
  * Proxy: Seu Cloudflare Worker (atualizar PROXY_URL abaixo)

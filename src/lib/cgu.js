@@ -109,9 +109,11 @@ function enrichSancao(result, tipo) {
 // ─── EMENDAS PARLAMENTARES ───────────────────────────────────────────────────
 
 /** Emendas parlamentares por autor e ano */
-export async function fetchEmendasParlamentares(autor, ano, apiKey) {
+// DEPOIS — usa o ID numérico da Câmara:
+export async function fetchEmendasParlamentares(codigoAutor, ano, apiKey) {
+  // codigoAutor = ID numérico do deputado (ex: 204560)
   return fetchCGU(
-    `/emendas?ano=${ano}&autor=${encodeURIComponent(autor)}&pagina=1&tamanhoPagina=50`,
+    `/emendas?ano=${ano}&codigoAutor=${codigoAutor}&pagina=1&tamanhoPagina=50`,
     apiKey
   );
 }

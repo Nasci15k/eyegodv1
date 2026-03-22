@@ -110,7 +110,7 @@ export function useDossier(nome, ceapRows = []) {
       try {
         const apiKey = CGUKEY();
         const [emendas, viagens] = await Promise.all([
-          fetchEmendasParlamentares(nome, '2024', apiKey),
+          fetchEmendasParlamentares(deputadoId, '2024', apiKey),
           fetchViagensGoverno(candidato?.cpf || '', apiKey),
         ]);
         set('emendas', {
